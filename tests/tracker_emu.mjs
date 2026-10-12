@@ -3617,7 +3617,7 @@ ok(/#define LCD_BAUD 0u/.test(readFileSync(join(ROOT, 'fw', 'firmware', 'src', '
 
 // C19: the run is complete: a block that stops early (an exception caught, a loop cut short) leaves fewer checks. Raise
 // MIN_CHECKS with each new check
-const MIN_CHECKS = 611;
+const MIN_CHECKS = 714;
 // ---- OPTIMIZE M9 (preparation): the three test projects of the CPU measurement on the unit, built by key presses into
 // slots 01..03 (the 4th is the user's own song). Four channels of 16th notes, one engine each, RET on every 4th row so the
 // tails stack. The store goes to build/tracker/m9-store.bin; each slot is reloaded after a reboot and must sound.
