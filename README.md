@@ -3,7 +3,7 @@
 **A tracker firmware for the M-VAVE FM-1**, in the LSDJ / picoTracker / M8 line: song, chain and phrase screens,
 instruments, effects and a mixer, on the FM-1's own keys and screen.
 
-**[Try it in your browser or install it on your FM-1](https://risseraka.github.io/ketch/)**
+**[Try it in your browser or install it on your FM-1](https://risseraka.github.io/fm1-tracker-ketch/)**
 
 > **Status: 0.1 beta.** It runs on the FM-1, but it has been tested on one unit by one person. Expect bugs, and
 > expect that a song saved in a beta may not load in the next one. To keep a song, record it over USB audio.

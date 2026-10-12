@@ -61,7 +61,7 @@ LANDING = """<!doctype html>
      <a href="firmware/ketch-{fver}.fwsc" style="color:inherit">ketch-{fver}.fwsc</a></p>
 </main>
 """
-REPO = "https://github.com/risseraka/ketch"
+REPO = "https://github.com/risseraka/fm1-tracker-ketch"
 
 
 def main(pkg, version, wasm, out):

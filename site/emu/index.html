@@ -61,6 +61,8 @@ h1 b { color: var(--accent); font-weight: normal; }
 #bar section { flex: 1; min-width: 0; }
 #bar h2 { font-size: 11px; letter-spacing: 2px; font-weight: normal; color: var(--txt); margin-bottom: 4px; }
 #midilog { font-size: 11px; color: var(--txt); min-height: 4em; }
+#keyhelp { white-space: pre-line; }
+#bar a { color: var(--accent); }
 #status { color: var(--accent); }
 @media (max-width: 700px) { #bar { flex-direction: column; gap: 12px; } }
 </style>
@@ -77,8 +79,11 @@ h1 b { color: var(--accent); font-weight: normal; }
   <section>
     <h2>KEYS</h2>
     <span id="keyhelp">A&ndash;' white keys from C4, W E T Y U O P ] black keys &middot; Z X = OCT&minus; OCT+</span><br>
-    1&ndash;0 FX SEL ENV LFO EDIT GLO HOME SAVE ARP SEQ &middot; space PLAY &middot; Tab REC<br>
-    &uarr;&darr; SELECT &middot; &larr;&rarr; ALGORITHM &middot; [ \ PRESETS &middot; knobs: drag or scroll
+    1&ndash;0 FX SEL ENV LFO EDIT<br>
+    GLO HOME SAVE ARP SEQ<br>
+    space PLAY &middot; Tab REC<br>
+    &uarr;&darr; SELECT &middot; &larr;&rarr; ALGORITHM<br>
+    [ \ PRESETS &middot; knobs: drag or scroll
   </section>
   <section>
     <h2>MIDI OUT</h2>

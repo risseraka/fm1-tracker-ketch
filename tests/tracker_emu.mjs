@@ -3617,7 +3617,7 @@ ok(/#define LCD_BAUD 0u/.test(readFileSync(join(ROOT, 'fw', 'firmware', 'src', '
 
 // C19: the run is complete: a block that stops early (an exception caught, a loop cut short) leaves fewer checks. Raise
 // MIN_CHECKS with each new check
-const MIN_CHECKS = 602;
+const MIN_CHECKS = 611;
 // ---- OPTIMIZE M9 (preparation): the three test projects of the CPU measurement on the unit, built by key presses into
 // slots 01..03 (the 4th is the user's own song). Four channels of 16th notes, one engine each, RET on every 4th row so the
 // tails stack. The store goes to build/tracker/m9-store.bin; each slot is reloaded after a reboot and must sound.
@@ -3655,6 +3655,191 @@ const MIN_CHECKS = 602;
         const a = R.playRecord(2000);
         ok(top() !== '' && R.strip() !== 'load failed 0' + n && rms(a, 44100) > 0.002, `slot 0${n}: loads and sounds (rms ${rms(a, 44100).toFixed(4)}, ${R.strip()})`);
     }
+}
+
+// ---- the demo song for the browser emulator (web/dinghy-emu/site/demo-store.bin + demo-settings.bin, which the site serves):
+// project DEMO in slot 01, four channels on four engines, each phrase played in with REC (notes mode) and fixed to its
+// channel's instrument. Song rows 00-04: INTRO A B A OUTRO, each a chain of 4 phrases = 4 bars on every channel (they
+// stay bar for bar together). Jungle, TEMPO 168: CH1 an Amen-style chopped break (DRUM engine: kicks on 0 and 10, snares
+// on 4 and 12 with ghost snares, 16th hats; the intro thins in, A ends in a fill, B reorders the hits and ends in a snare
+// roll), CH2 FM6 reese bass (long notes, an MLV ramp; A's third bar and all of B are the same phrase on the chain's TRN),
+// CH3 TRIO minor pad (Am Am F G; its CUT ramp opens over the whole intro), CH4 WHEEL ragga stabs (call and response).
+// The outro dies over its 4 bars: the break stops, the pad and bass ring out to note offs (the bass fading, a VOL ramp).
+// The commands: SWG, RET (rolls), DEL (ghost snares, a late stab), CHA (hats that sometimes drop), CUT / MLV / VOL ramps
+// (RTO, RTI under them), TRN. (The SLICE engine's built-in BREAK is one bar at 120 BPM: it would need a PTCH at 168.)
+// Where a channel is quiet it plays a chain of an empty phrase: an empty song cell would end that channel's song and it
+// would never come back (walk()), and a shorter chain would put the channel out of step.
+{
+    const T = rig(), top = () => readText(T.m.fb(), 4, 4, 24).trimEnd();
+    let oct = 4, built = 0, row = 0, ch = 0, crow = 0, fxN = 0, fxOk = 0;
+    const setOct = o => { for (; oct < o; oct++) T.btn(1); for (; oct > o; oct--) T.btn(0); };
+    const OFF = 99;                              // a phrase row: the keybed key 7 + n (n semitones above the octave's C), -1 a rest, OFF a note off (F#3)
+    const phrase = (k, o, rows, fxs = [], pre = () => {}) => {
+        T.to(0, 0); setOct(o); T.btn(13);
+        for (const n of rows) { if (n === -1) T.press('down'); else T.key(n === OFF ? 1 : 7 + n); }
+        T.btn(13); T.btn(13);                    // REC, REC, REC: back to the gamepad
+        rows.forEach((n, r) => {
+            if (n === -1 || n === OFF) return;
+            T.to(r, 2);
+            for (let g = 0, v; g < 40 && (v = parseInt(T.cell(9, r, 2), 16)) !== k; g++) T.with_('edit', v < k ? 'down' : 'up');
+        });
+        pre();                                   // (the engine first: a sound command is named by it)
+        for (const [r, c, name, val] of fxs) T.fx(r, c, name, val);
+        for (const [r, c, name, val] of fxs) {   // read back, the cursor off that row
+            T.to(r < 8 ? 15 : 0, 0); fxN++;
+            if (T.cell([11, 18, 25][c], r, 3) === name && parseInt(T.cell([15, 22, 29][c], r, 2), 16) === val) fxOk++;
+        }
+    };
+    const goRow = r => { T.press(r > row ? 'down' : 'up', Math.abs(r - row)); row = r; };   // S: the song row
+    const goCh = k => { T.press(k > ch ? 'right' : 'left', Math.abs(k - ch)); ch = k; };     // S: the channel
+    const cgo = r => { T.press(r > crow ? 'down' : 'up', Math.abs(r - crow)); crow = r; };   // C: the chain row
+    T.with_('shift', 'up'); T.press('down'); T.go(400); T.press('edit', 3);       // G: slot 01 (a new project)
+    T.press('right'); let chr = 0;
+    for (const c of 'DEMO') {                    // NAME: the character grid (EDIT held; it starts on the last letter)
+        const t = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.indexOf(c);
+        T.hold('edit');
+        for (let d = Math.floor(t / 10) - Math.floor(chr / 10); d; d += d < 0 ? 1 : -1) T.press(d < 0 ? 'up' : 'down');
+        T.press(t % 10 < chr % 10 ? 'left' : 'right', Math.abs(t % 10 - chr % 10));
+        T.free('edit'); chr = t;
+    }
+    T.press('left', 5); T.press('down', 2); T.press('right');   // TEMPO 168 (40..255, EDIT + up / down: 10)
+    for (let g = 0, v, d; g < 40 && (d = 168 - (v = +T.cell(21, 3, 12).match(/\d+/)[0])); g++) T.with_('edit', Math.abs(d) >= 10 ? (d > 0 ? 'up' : 'down') : d > 0 ? 'right' : 'left');
+    const tempo = T.cell(21, 3, 12);
+    T.with_('shift', 'down'); T.with_('shift', 'left', 2);   // P -> S
+    const K = 0, SN = 2, HC = 6, R = -1;         // the DRUM engine's GM notes at octave 2: C KICK, D SNARE, F# HAT CL
+    const H = o => { const r = Array(16).fill(R); for (const i in o) r[i] = o[i]; return r; };   // a sparse phrase {row: note}
+    const CS = (r, c, v) => [r, c, 'CHA', v];
+    const RAMP = (r, name, from, to, rti = 0x10) => [[r, 0, name, from], [r + 1, 0, 'RTO', to], [r + 2, 0, 'RTI', rti]];
+    const P = (rows, fx = []) => ({ rows, fx });
+    // per channel: engine, octave, then INTRO, A, B, OUTRO as { ch: the phrase labels of the 4 chain rows, tr: their
+    // transposes, ph: { label: the phrase when it is new here (null: an empty one) } }
+    const E4 = l => ({ ch: [l, l, l, l], ph: { [l]: null } });
+    const SPEC = [['DRUM', 2,
+        { ch: ['i1', 'i1', 'i2', 'i3'], ph: {
+            i1: P([K, R, R, R, R, R, HC, R, R, R, K, R, R, R, HC, R], [[14, 0, 'RET', 2]]),
+            i2: P([K, R, HC, R, R, R, HC, R, HC, R, K, R, HC, R, HC, R]),
+            i3: P([K, R, HC, R, SN, R, HC, R, K, R, HC, SN, HC, R, SN, SN], [[14, 0, 'RET', 3], [15, 0, 'RET', 2]]) } },
+        { ch: ['a', 'a', 'a', 'af'], ph: {
+            a: P([K, HC, K, HC, SN, HC, HC, SN, HC, SN, K, HC, SN, HC, K, HC],
+                 [[0, 0, 'SWG', 0x20], [7, 0, 'DEL', 3], [9, 0, 'DEL', 2], [12, 0, 'RET', 4], CS(3, 1, 0x8F), CS(11, 1, 0x8F), CS(15, 1, 0x8F)]),
+            af: P([K, HC, K, HC, SN, HC, HC, SN, HC, SN, K, HC, SN, SN, SN, SN], [[7, 0, 'DEL', 3], [12, 0, 'RET', 4], [13, 0, 'RET', 3], [15, 0, 'RET', 2]]) } },
+        { ch: ['b', 'b', 'b', 'bf'], ph: {
+            b: P([K, K, HC, SN, HC, K, SN, HC, SN, HC, K, HC, SN, HC, K, HC], [[3, 0, 'DEL', 2], [6, 0, 'RET', 4], CS(2, 1, 0x8F), CS(9, 1, 0x8F)]),
+            bf: P([K, K, HC, SN, HC, K, SN, HC, SN, HC, K, HC, SN, SN, SN, SN], [[3, 0, 'DEL', 2], [6, 0, 'RET', 4], [13, 0, 'RET', 3], [15, 0, 'RET', 2]]) } },
+        { ch: ['o1', 'o3', 'Ed', 'Ed'], ph: { o1: P([K, R, HC, R, K, R, HC, R, K, R, R, R, R, R, R, R]), o3: P(H({ 0: K })), Ed: null } }],
+     ['FM6', 2,
+        E4('Ei'),
+        { ch: ['a1', 'a1', 'a1', 'a1'], tr: [0, 0, -2, 0], ph: { a1: P(H({ 0: 9, 10: 7 }), RAMP(0, 'MLV', 0x10, 0x50)) } },     // a reese: A held, then G, the modulator opening
+        { ch: ['a1', 'a1', 'a1', 'a1'], tr: [-2, -2, -5, -2], ph: {} },                                                          // the same, down: G F, G F, E, G F
+        { ch: ['bo', 'Eo', 'Eo', 'Eo'], ph: { bo: P(H({ 0: 9, 12: OFF }), [[0, 0, 'VOL', 0xC0], [1, 0, 'RTO', 0x30], [2, 0, 'RTI', 0x10]]), Eo: null } }],
+     ['TRIO', 3,
+        { ch: ['p1', 'p2', 'p2', 'p2'], ph: { p1: P(H({ 0: 9 }), RAMP(0, 'CUT', 0x10, 0x60, 0x40)), p2: P(H({ 0: 9, 8: 9 })) } },   // the filter opens over the 4 bars
+        { ch: ['pAm', 'pAm', 'pF', 'pG'], ph: { pAm: P(H({ 0: 9, 8: 12 })), pF: P(H({ 0: 5, 8: 9 })), pG: P(H({ 0: 7, 8: 11 })) } },
+        { ch: ['bF', 'bF', 'bG', 'bGc'], ph: { bF: P(H({ 0: 5, 8: 5 })), bG: P(H({ 0: 7, 8: 7 })), bGc: P(H({ 0: 7, 8: 7 }), RAMP(0, 'CUT', 0x60, 0x20)) } },
+        { ch: ['po1', 'po2', 'Eo', 'Eo'], ph: { po1: P(H({ 0: 9 })), po2: P(H({ 0: 7, 8: OFF })), Eo: null } }],
+     ['WHEEL', 4,
+        E4('Ei'),
+        { ch: ['s1', 's2', 's3', 's4'], ph: {
+            s1: P([R, R, R, R, R, R, 9, OFF, R, R, R, 12, OFF, R, 9, OFF], [[11, 0, 'DEL', 2]]),          // call
+            s2: P([R, R, 12, OFF, R, R, 9, OFF, R, R, R, R, 5, OFF, R, R]),                                // response
+            s3: P([R, R, R, 12, OFF, R, 9, OFF, R, R, R, 11, OFF, R, 9, OFF]),
+            s4: P([R, R, 12, OFF, R, R, 11, OFF, R, R, 9, R, R, R, R, OFF]) } },
+        { ch: ['t1', 't1', 't2', 't2'], ph: {
+            t1: P([R, R, 12, OFF, R, R, 9, OFF, R, R, 12, OFF, R, R, 5, OFF]),
+            t2: P([12, OFF, R, R, 12, OFF, R, R, 11, OFF, R, R, 7, R, R, OFF]) } },
+        E4('Eo')]];
+    const fxWant = SPEC.reduce((n, c) => n + c.slice(2).reduce((m, p) => m + Object.values(p.ph).reduce((q, f) => q + (f ? f.fx.length : 0), 0), 0), 0);
+    const SECT = [0, 1, 2, 4];                   // song rows INTRO, A, B, OUTRO (row 03 = A again, below)
+    SPEC.forEach(([eng, o, ...parts], k) => {
+        if (k) { T.press('right'); ch = k; }
+        let first = true, lastLabel = null;
+        const done = new Set();
+        parts.forEach((p, i) => {
+            goRow(SECT[i]); T.press('edit', 2); T.with_('shift', 'right'); T.press('up', 15); crow = 0;   // a new chain, C, its row 00
+            p.ch.forEach((label, q) => {
+                cgo(q);
+                if (!done.has(label)) {
+                    T.press('edit', 2);                                           // a new phrase on that row
+                    const def = p.ph[label];
+                    if (def) {
+                        T.with_('shift', 'right');                                // P
+                        phrase(k, o, def.rows, def.fx, first ? () => {
+                            T.to(0, 0); T.with_('shift', 'right');                // I: the engine of that instrument
+                            for (let g = 0; g < 14 && !readText(T.m.fb(), 4, 46, 6).startsWith(eng); g++) T.with_('edit', 'down');
+                            for (let g = 0; g < 14 && !readText(T.m.fb(), 4, 46, 6).startsWith(eng); g++) T.with_('edit', 'up');   // (the list does not wrap)
+                            if (readText(T.m.fb(), 4, 46, 6).startsWith(eng) && top().includes('>I' + k)) built++;
+                            T.with_('shift', 'left');
+                        } : undefined);
+                        first = false;
+                        T.with_('shift', 'left');                                 // C
+                    }
+                    done.add(label); T.press('edit');                             // (copy it: the next row takes it)
+                } else {
+                    if (label !== lastLabel) throw new Error(`demo: ${label} is not the phrase last copied (${lastLabel})`);
+                    T.press('edit');                                              // the last phrase
+                }
+                lastLabel = label;
+                const t = p.tr ? p.tr[q] : 0;
+                if (t) { T.press('right'); T.with_('edit', t < 0 ? 'left' : 'right', Math.abs(t)); T.press('left'); }   // its transpose
+            });
+            T.with_('shift', 'left');                                             // S
+        });
+        goRow(1); T.press('edit'); goRow(3); T.press('edit'); goRow(0);           // row 03 = row 01's chain
+    });
+    const song = [0, 1, 2, 3, 4].map(r => [0, 1, 2, 3].map(k => T.cell(3 + 3 * k, r, 2)));
+    const part = (k, r) => SPEC[k].slice(2)[[0, 1, 2, 1, 3][r]];
+    const chains = [];                           // every chain the song uses, opened: rows 00-07 (the cursor off them), read back
+    for (let r = 0; r < 5; r++) for (let k = 0; k < 4; k++) {
+        goCh(k); goRow(r);
+        T.with_('shift', 'right'); T.press('down', 15);
+        const rows = [...Array(8).keys()];
+        chains.push({ k, r, ph: rows.map(q => T.cell(2, q, 2)), tr: rows.map(q => T.cell(5, q, 3)) });
+        T.press('up', 15); T.with_('shift', 'left');
+    }
+    const fmt = t => (t < 0 ? '-' : '+') + String(Math.abs(t)).padStart(2, '0');
+    const ids = [0, 1, 2, 3].map(() => new Map());   // per channel: label -> the phrase number read back
+    const chainOk = chains.every(c => {
+        const sp = part(c.k, c.r), seen = ids[c.k];
+        return c.ph.slice(0, 4).every(x => x !== '--') && c.ph.slice(4).every(x => x === '--')
+            && sp.ch.every((l, q) => c.tr[q] === fmt(sp.tr ? sp.tr[q] : 0) && (seen.has(l) ? seen.get(l) === c.ph[q] : ![...seen.values()].includes(c.ph[q]) && seen.set(l, c.ph[q])));
+    });
+    const apart = [0, 1, 2, 3].every(k => [0, 1, 2, 3].every(j => j === k || [...ids[k].values()].every(x => ![...ids[j].values()].includes(x))));
+    const lens = [0, 1, 2, 3, 4].map(r => chains.filter(c => c.r === r).map(c => c.ph.filter(x => x !== '--').length));
+    T.with_('shift', 'up'); T.btn(9); T.go(300);
+    ok(built === 4 && T.strip() === 'saved to 01' && top() === 'PROJECT 01  DEMO' && tempo.includes('168'),
+        `the demo: ${built} of 4 engines set, ${T.strip()}, ${top()}, ${tempo.trim()}`);
+    ok([0, 1, 2, 3].every(k => [0, 1, 2, 3, 4].every(r => song[r][k] !== '--') && song[1][k] === song[3][k]
+        && [0, 2, 4].every(r => [0, 2, 4].every(q => q === r || song[r][k] !== song[q][k]) && song[r][k] !== song[1][k])),
+        `the demo's song rows 00-04 are INTRO A B A OUTRO (${song.map(r => r.join(' ')).join(' / ')})`);
+    ok(chains.length === 20 && chainOk && apart,
+        `every chain read back holds its 4 phrases from row 00 (rows 04-07 empty), as designed, a phrase per label, none shared between channels, TRN as set (CH song row: rows 00-03 / TRN: ${chains.map(c => `${c.k + 1}.${c.r} ${c.ph.slice(0, 5).join(' ')}${c.tr.slice(0, 4).some(t => t !== '+00') ? ' ' + c.tr.slice(0, 4).join(' ') : ''}`).join('; ')})`);
+    ok(lens.every(l => l.every(n => n === 4)), `the chains of a song row are the same length on every channel (phrases per chain, song rows 00-04: ${lens.map(l => l.join('/')).join(' ')})`);
+    ok(fxN === fxWant && fxOk === fxN, `the demo's commands: ${fxOk} of ${fxN} cells read back (SWG RET DEL CHA, CUT / MLV / VOL ramps)`);
+    const st = T.store(), se = T.settings();
+    const SITE = join(ROOT, 'web', 'dinghy-emu', 'site');
+    writeFileSync(join(SITE, 'demo-store.bin'), st); writeFileSync(join(SITE, 'demo-settings.bin'), se);
+    const Rg = rig(st, se, true);                // a reboot: the tracker opens the last project (the settings), on S
+    const bar = Math.round(44100 * 16 * 60 / (168 * 4)), sec = 4 * bar, LEN = 20 * bar / 44.1 + 1500;
+    const a = Rg.playRecord(LEN);
+    ok(rms(a, 44100) > 0.002, `the demo opens at boot and sounds (rms ${rms(a, 44100).toFixed(4)})`);
+    Rg.press('play'); Rg.go(1500);                // (stopped)
+    const soloed = [];                           // each channel soloed (OPTION + PLAY) and the song played: heard in every bar that has notes in it
+    const has = (k, r, q) => { const sp = part(k, r), d = SPEC[k].slice(2).map(x => x.ph[sp.ch[q]]).find(Boolean); return !!d && d.rows.some(n => n !== R && n !== OFF); };
+    for (let k = 0; k < 4; k++) {
+        if (k) Rg.press('right');
+        Rg.hold('option'); Rg.press('play'); Rg.free('option');
+        const x = Rg.playRecord(LEN); Rg.press('play'); Rg.go(1500);
+        Rg.hold('option'); Rg.press('play'); Rg.free('option');
+        soloed.push([0, 1, 2, 3, 4].flatMap(r => [0, 1, 2, 3].map(q => [r * 4 + q, has(k, r, q)])).filter(b => b[1]).map(b => rms(x, b[0] * bar + 4000, (b[0] + 1) * bar)));
+    }
+    ok(soloed.every(l => l.every(v => v > 0.003)), `each channel plays through every bar that has notes when soloed (min rms per channel: ${soloed.map((l, k) => `CH${k + 1} ${Math.min(...l).toFixed(3)} of ${l.length} bars`).join('; ')})`);
+    const hi = s => { const d = []; for (let i = s * sec + 1; i < (s + 1) * sec; i++) d.push(a[i] - a[i - 1]); return rms(d); };   // (first difference: the highs)
+    const env = s => { const e = [], st = Math.round(bar / 16); for (let i = 0; i < 48; i++) { const d = []; for (let j = s * sec + i * st + 1; j < s * sec + (i + 1) * st; j++) d.push(a[j] - a[j - 1]); e.push(rms(d)); } return e; };   // the highs per 16th, A's first 3 bars
+    const cor = (p, q) => { const m = x => x.reduce((u, v) => u + v, 0) / x.length, mp = m(p), mq = m(q); let n = 0, dp = 0, dq = 0; p.forEach((x, i) => { n += (x - mp) * (q[i] - mq); dp += (x - mp) ** 2; dq += (q[i] - mq) ** 2; }); return n / Math.sqrt(dp * dq); };
+    const eA = env(1), simAA = cor(eA, env(3)), simAB = cor(eA, env(2));
+    ok(simAA > simAB + 0.1, `section A sounds like the second A and not like B: 16th-note envelope correlation ${simAA.toFixed(2)} against ${simAB.toFixed(2)}`);
+    ok(hi(0) < hi(1) * 0.7 && rms(a, 4 * sec, 5 * sec) < rms(a, sec, 2 * sec) / 2,
+        `INTRO has no lead, OUTRO dies: highs ${hi(0).toFixed(4)} against ${hi(1).toFixed(4)}, outro rms ${rms(a, 4 * sec, 5 * sec).toFixed(3)} against ${rms(a, sec, 2 * sec).toFixed(3)}`);
 }
 
 ok(checks + 1 >= MIN_CHECKS, `the whole run: ${checks + 1} checks, at least ${MIN_CHECKS}`);

@@ -6,6 +6,7 @@
 
 // the firmware: site/<FW>.wasm (?fw=dinghy for Dinghy's demo app)
 const FW = (new URLSearchParams(location.search).get('fw') || '').replace(/[^a-z0-9_-]/gi, '') || 'tracker';
+const DEMO = FW === 'tracker' && new URLSearchParams(location.search).has('demo');   // the demo song: loaded fresh, never kept
 const S = 1.0;                                   // px per drawing unit
 const DEV = { w: 963, h: 588 };
 const BTN = { 'OCT-': 0, 'OCT+': 1, FX: 2, SEL: 3, ENV: 4, LFO: 5, EDIT: 6, GLO: 7,
@@ -275,23 +276,34 @@ function initMidi() {
 
 // ---- power on (audio needs a click)
 const status = document.getElementById('status');
-if (FW === 'tracker') document.getElementById('keyhelp').textContent = 'A S W D = ← ↓ ↑ → · Q key 1 · J SHIFT · K PLAY · L OPTION · ; EDIT (keybed keys, hold two at once) · Tab REC, then R Z X F C G V B H N T M Y , . U = A#3…C#5, Q = note off · − = OCT− OCT+';
+const NAME = FW === 'tracker' ? 'Ketch' : FW[0].toUpperCase() + FW.slice(1);
+document.querySelector('h1 b').textContent = NAME.toUpperCase();
+document.title = NAME + ' emulator' + (DEMO ? ' · demo song' : '');
+if (FW === 'tracker') {
+    document.getElementById('keyhelp').textContent = 'A S W D = ← ↓ ↑ →\nQ key 1 · J SHIFT · K PLAY\nL OPTION · ; EDIT\n(keybed keys, hold two at once)\nTab REC, then:\nR Z X F C G V B H N T M Y , . U\n= A#3…C#5\nQ = note off · − = OCT− OCT+';
+    const out = document.getElementById('midilog').parentElement;   // the tracker sends no MIDI: its place is the demo song's
+    out.innerHTML = DEMO
+        ? '<h2>DEMO SONG</h2><div>loaded fresh on each visit; changes are not kept</div><a href="?">back to your own songs</a>'
+        : '<h2>DEMO SONG</h2><a href="?demo">load the demo song</a><div>your own songs stay as they are</div>';
+}
 async function powerOn() {
     document.getElementById('power').remove();
     const ctx = new AudioContext({ sampleRate: 44100, latencyHint: 'interactive' });
     await ctx.audioWorklet.addModule('worklet.js');
     const wasm = await (await fetch(FW + '.wasm', { cache: 'no-store' })).arrayBuffer();
+    const bin = async f => (await fetch(f, { cache: 'no-store' })).arrayBuffer();
     node = new AudioWorkletNode(ctx, 'dinghy', {
         numberOfInputs: 0, outputChannelCount: [2],
-        processorOptions: { wasm, settings: loadSettings(), store: loadStore() },
+        processorOptions: DEMO ? { wasm, settings: await bin('demo-settings.bin'), store: await bin('demo-store.bin') }
+                               : { wasm, settings: loadSettings(), store: loadStore() },
     });
     node.port.onmessage = ev => {
         const m = ev.data;
         if (m.fb) drawFB(m.fb);
         applyLeds(m.leds, m.dims);
-        if (m.midi.length) logMidi(m.midi);
-        if (m.settings) saveSettings(m.settings);
-        if (m.store) saveStore(m.store);
+        if (m.midi.length && midiLog.isConnected) logMidi(m.midi);
+        if (m.settings && !DEMO) saveSettings(m.settings);
+        if (m.store && !DEMO) saveStore(m.store);
         status.textContent = m.ended ? 'app_main returned (it should not): stopped'
             : `${(m.ms / 1000).toFixed(1)} s` + (m.behind > 20 ? `  ·  main loop ${m.behind} ms behind` : '')
             + (storeErr ? '  ·  ' + storeErr : '');
