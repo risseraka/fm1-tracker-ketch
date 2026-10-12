@@ -3840,6 +3840,17 @@ const MIN_CHECKS = 611;
     ok(simAA > simAB + 0.1, `section A sounds like the second A and not like B: 16th-note envelope correlation ${simAA.toFixed(2)} against ${simAB.toFixed(2)}`);
     ok(hi(0) < hi(1) * 0.7 && rms(a, 4 * sec, 5 * sec) < rms(a, sec, 2 * sec) / 2,
         `INTRO has no lead, OUTRO dies: highs ${hi(0).toFixed(4)} against ${hi(1).toFixed(4)}, outro rms ${rms(a, 4 * sec, 5 * sec).toFixed(3)} against ${rms(a, sec, 2 * sec).toFixed(3)}`);
+    {   // every screen on the demo song, playing (build/tracker/guide-*.png: the Ketch README and site guide)
+        const G = rig(st, se, true), seen = [];
+        const shot = L => { G.go(400); seen.push(mapLit((x, y) => G.m.fb()[y * 240 + x], L, 2) ? L : L.toLowerCase()); G.shot('guide-' + L); };
+        G.press('down'); G.press('play'); G.go(bar * 1000 / 44100 * 4);   // song row 01 (section A), from its bar 2
+        shot('S'); G.with_('shift', 'right'); shot('C'); G.with_('shift', 'right'); shot('P');
+        G.with_('shift', 'up'); shot('G'); G.with_('shift', 'down');
+        G.with_('shift', 'down'); shot('F'); G.with_('shift', 'down'); shot('X'); G.with_('shift', 'up'); G.with_('shift', 'up');
+        G.with_('shift', 'right'); shot('I'); G.with_('shift', 'up'); shot('Q'); G.with_('shift', 'down');
+        G.with_('shift', 'down'); shot('E'); G.with_('shift', 'down'); shot('L'); G.with_('shift', 'down'); shot('V');
+        ok(seen.join('') === 'SCPGFXIQELV', `the guide's screens, each on its letter of the map (${seen.join('')})`);
+    }
 }
 
 ok(checks + 1 >= MIN_CHECKS, `the whole run: ${checks + 1} checks, at least ${MIN_CHECKS}`);

@@ -1,0 +1,155 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ketch screens</title>
+<meta name="description" content="Every screen of Ketch, a tracker firmware for the M-VAVE FM-1, and its controls.">
+<meta property="og:title" content="Ketch screens and controls"><meta property="og:type" content="website">
+<meta property="og:description" content="Every screen of Ketch, a tracker firmware for the M-VAVE FM-1, and its controls.">
+<meta property="og:image" content="https://risseraka.github.io/fm1-tracker-ketch/guide/screens/guide-P.png">
+<meta name="twitter:card" content="summary">
+<style>
+  :root { --bg: #fff; --fg: #000; --dim: #777; --line: #ccc; --acc: #f90; --key: #fff; --keyb: #222; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --line: #333; --key: #ddd; --keyb: #111; } }
+  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #888; --line: #333; --key: #ddd; --keyb: #111; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 40px 0 8px; border-top: 1px solid var(--line); padding-top: 24px; }
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  a { color: inherit; }
+  .small { color: var(--dim); font-size: 13px; }
+  kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; border: 1px solid var(--line); padding: 0 4px; white-space: nowrap; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  td { border-top: 1px solid var(--line); padding: 6px 8px 6px 0; vertical-align: top; }
+  td:first-child { white-space: nowrap; font-weight: 600; width: 1%; }
+  svg.keys { width: 100%; max-width: 640px; height: auto; display: block; margin: 8px 0; }
+  .map { display: grid; grid-template-columns: repeat(4, 40px); gap: 4px; margin: 12px 0; font: 600 18px ui-monospace, Menlo, Consolas, monospace; }
+  .map a, .map span { display: block; text-align: center; line-height: 40px; }
+  .map a { border: 1px solid var(--fg); text-decoration: none; }
+  .map a.main { background: var(--fg); color: var(--bg); }
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+  .screens figure { margin: 0; }
+  .screens img { width: 100%; max-width: 360px; display: block; image-rendering: pixelated; border: 1px solid var(--line); }
+  figcaption { font-size: 14px; margin-top: 6px; }
+</style>
+<main>
+  <h1>Ketch: screens and controls</h1>
+  <p>Ketch is a tracker firmware for the M-VAVE FM-1. Every picture below is the firmware itself, playing the
+     demo song, in the emulator. <a href="../emu/">Try it in the browser</a> · <a href="../">Home</a></p>
+
+  <h2>1 · The keybed is a gamepad</h2>
+  <p>The tracker takes its eight controls from the keybed: a d-pad on the four lowest keys, laid out as an inverted T,
+     and <b>SHIFT</b>, <b>PLAY</b>, <b>OPTION</b> and <b>EDIT</b> on the four highest white keys. Press <b>REC</b> on the
+     panel to play notes on the middle keys instead.</p>
+  <svg class="keys" id="keys" viewBox="0 0 322 112" role="img" aria-label="The FM-1 keybed, F3 to G5: left, down, up, right on F3, G3, G#3, A3; SHIFT, PLAY, OPTION, EDIT on D5, E5, F5, G5"></svg>
+  <p class="small">In the emulator: <kbd>A</kbd> <kbd>S</kbd> <kbd>W</kbd> <kbd>D</kbd> = ◀ ▼ ▲ ▶ ·
+     <kbd>J</kbd> SHIFT · <kbd>K</kbd> PLAY · <kbd>L</kbd> OPTION · <kbd>;</kbd> EDIT ·
+     <kbd>Space</kbd> panel PLAY · <kbd>Tab</kbd> REC · <kbd>1</kbd>–<kbd>0</kbd> the panel buttons.</p>
+
+  <h2>2 · Screens and the map</h2>
+  <p><b>SHIFT + ◀ ▶</b> moves along the main row: song, chain, phrase, instrument. <b>SHIFT + ▲ ▼</b> moves up or down
+     from where you are: above song, chain and phrase is the project page (G), below them the effects (F), then the
+     mixer (X). Above the instrument is the event view (Q), below it the envelope (E), LFO (L) and voice (V) pages.
+     The map in the corner of each screen shows where you are.</p>
+  <div class="map" aria-label="The screen map">
+    <span></span><a href="#G">G</a><span></span><a href="#Q">Q</a>
+    <a class="main" href="#S">S</a><a class="main" href="#C">C</a><a class="main" href="#P">P</a><a class="main" href="#I">I</a>
+    <span></span><a href="#F">F</a><span></span><a href="#E">E</a>
+    <span></span><a href="#X">X</a><span></span><a href="#L">L</a>
+    <span></span><span></span><span></span><a href="#V">V</a>
+  </div>
+  <div class="screens">
+    <figure id="S"><img src="screens/guide-S.png" alt="Song screen" width="360" height="360" loading="lazy">
+      <figcaption><h3>S · Song</h3>One column per channel, a chain number per row; the song plays down the rows.
+        On the right, the chain under the cursor.</figcaption></figure>
+    <figure id="C"><img src="screens/guide-C.png" alt="Chain screen" width="360" height="360" loading="lazy">
+      <figcaption><h3>C · Chain</h3>Up to 16 phrases in a row, each with a transpose. On the right, the phrase under the cursor.</figcaption></figure>
+    <figure id="P"><img src="screens/guide-P.png" alt="Phrase screen" width="360" height="360" loading="lazy">
+      <figcaption><h3>P · Phrase</h3>16 rows of note, instrument, velocity and commands (delay, retrigger, chance,
+        swing, ramps, every sound parameter). The top line shows the path: channel, song row, chain row, phrase.</figcaption></figure>
+    <figure id="I"><img src="screens/guide-I.png" alt="Instrument screen" width="360" height="360" loading="lazy">
+      <figcaption><h3>I · Instrument</h3>Engine and preset, level, pan, name, the engine's parameters, and the four
+        knob slots (what KNOB 1–4 turn on the other screens).</figcaption></figure>
+    <figure id="Q"><img src="screens/guide-Q.png" alt="Event view" width="360" height="360" loading="lazy">
+      <figcaption><h3>Q · Event view</h3>Every row the instrument plays, on a timeline of the song, each listed once with
+        how many times it plays. Edit a row here and it changes everywhere it plays.</figcaption></figure>
+    <figure id="E"><img src="screens/guide-E.png" alt="Envelope page" width="360" height="360" loading="lazy">
+      <figcaption><h3>E · Envelope</h3>Attack, decay, sustain, release, drawn, and what the envelope modulates.</figcaption></figure>
+    <figure id="L"><img src="screens/guide-L.png" alt="LFO page" width="360" height="360" loading="lazy">
+      <figcaption><h3>L · LFO</h3>Rate, wave, phase, fade, drawn and moving, and what the LFO modulates.</figcaption></figure>
+    <figure id="V"><img src="screens/guide-V.png" alt="Voice page" width="360" height="360" loading="lazy">
+      <figcaption><h3>V · Voice</h3>Poly or mono, glide, detune, and the sends to the effects.</figcaption></figure>
+    <figure id="G"><img src="screens/guide-G.png" alt="Project page" width="360" height="360" loading="lazy">
+      <figcaption><h3>G · Project</h3>The project slots in flash, tempo, step, swing, tune, metronome, count-in, and
+        how much of the song memory is used.</figcaption></figure>
+    <figure id="F"><img src="screens/guide-F.png" alt="Effects page" width="360" height="360" loading="lazy">
+      <figcaption><h3>F · Effects</h3>Delay, reverb and chorus, shared by the four channels.</figcaption></figure>
+    <figure id="X"><img src="screens/guide-X.png" alt="Mixer" width="360" height="360" loading="lazy">
+      <figcaption><h3>X · Mixer</h3>Level, mute and solo per channel, and the notes each channel is playing.</figcaption></figure>
+  </div>
+
+  <h2>3 · Editing</h2>
+  <table>
+    <tr><td>d-pad</td><td>Move the cursor.</td></tr>
+    <tr><td>EDIT</td><td>On an empty cell: put the last value used in that column. On a filled cell: copy it (the next EDIT on an empty cell pastes it).</td></tr>
+    <tr><td>EDIT + ◀ ▶</td><td>Value −1 / +1.</td></tr>
+    <tr><td>EDIT + ▼ ▲</td><td>Value −big / +big (a note: an octave; hex: 16; transpose: 12).</td></tr>
+    <tr><td>EDIT held</td><td>On a list: a popup with every choice. On a note: a two-octave keyboard.</td></tr>
+    <tr><td>EDIT EDIT</td><td>Song or chain: a new empty chain or phrase (the next free number).</td></tr>
+    <tr><td>OPTION + EDIT</td><td>Back to the default (empty; on an empty note: a note off), or delete the selection.</td></tr>
+    <tr><td>SHIFT + OPTION</td><td>Start a selection; the d-pad extends it, OPTION copies it. On a row number: whole rows.</td></tr>
+    <tr><td>SHIFT + EDIT</td><td>Paste. On a selection in one column: interpolate. On chain or phrase numbers: clone them.</td></tr>
+    <tr><td>OPTION + ◀ ▶</td><td>Chain, phrase: previous / next channel. Instrument pages: instrument −1 / +1.</td></tr>
+    <tr><td>OPTION + ▲ ▼</td><td>Chain: the song row. Phrase: the chain row. Instrument pages: instrument +4 / −4.</td></tr>
+  </table>
+
+  <h2>4 · Playing</h2>
+  <table>
+    <tr><td>PLAY</td><td>Play what the screen shows: the song or the chain from the cursor row, or loop the phrase. PLAY again stops.</td></tr>
+    <tr><td>SHIFT + PLAY</td><td>All channels from the current song row, from any screen.</td></tr>
+    <tr><td>OPTION, then SHIFT</td><td>Mute / unmute the cursor's channel.</td></tr>
+    <tr><td>OPTION + PLAY</td><td>Solo / unsolo it.</td></tr>
+    <tr><td>EDIT + PLAY</td><td>Hear the instrument (instrument pages) or the line (event view) while held.</td></tr>
+    <tr><td>REC (panel)</td><td>1st: the middle keys play notes (stopped, on the phrase screen, they write at the cursor). 2nd: armed;
+      PLAY then counts in and records where the playhead is. REC again: stop writing.</td></tr>
+    <tr><td>HOME (panel)</td><td>Follow: while playing, the cursor follows the playhead.</td></tr>
+  </table>
+
+  <h2>5 · Projects (G page)</h2>
+  <table>
+    <tr><td>EDIT</td><td>Load the slot.</td></tr>
+    <tr><td>EDIT EDIT</td><td>On an empty slot: a new project there.</td></tr>
+    <tr><td>SHIFT + OPTION, then OPTION</td><td>Copy the slot.</td></tr>
+    <tr><td>SHIFT + EDIT</td><td>Paste into the slot.</td></tr>
+    <tr><td>OPTION + EDIT</td><td>Delete the slot.</td></tr>
+    <tr><td>SAVE (panel)</td><td>Save the project (lit = unsaved).</td></tr>
+    <tr><td>GLO (panel)</td><td>The project page; again: back.</td></tr>
+    <tr><td>EDIT + OCT− / OCT+ (panel)</td><td>Undo / redo.</td></tr>
+  </table>
+  <p class="small">Ketch 0.1 beta. Source and releases: <a href="https://github.com/risseraka/fm1-tracker-ketch">github.com/risseraka/fm1-tracker-ketch</a> (GPL-3.0).</p>
+</main>
+<script>
+  // the keybed F3..G5 (27 keys), the gamepad keys labelled (tracker.c PAD_*)
+  const svg = document.getElementById('keys'), W = 20, ns = 'http://www.w3.org/2000/svg';
+  const LABEL = { 0: '◀', 2: '▼', 3: '▲', 4: '▶', 21: 'SHIFT', 23: 'PLAY', 24: 'OPTION', 26: 'EDIT' };
+  const black = i => [1, 3, 6, 8, 10].includes((i + 5) % 12), keys = [];
+  let x = 1;
+  for (let i = 0; i < 27; i++) {
+    if (black(i)) keys.push({ i, b: true, x: x - 6 }); else { keys.push({ i, b: false, x }); x += W; }
+  }
+  const el = (tag, a, text) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]);
+                                  if (text) e.textContent = text; svg.appendChild(e); };
+  for (const k of keys.filter(k => !k.b).concat(keys.filter(k => k.b))) {
+    const on = k.i in LABEL, h = k.b ? 60 : 96;
+    el('rect', { x: k.x, y: 1, width: k.b ? 12 : W, height: h,
+                 fill: on ? '#f90' : k.b ? 'var(--keyb)' : 'var(--key)', stroke: '#555', 'stroke-width': 1 });
+    if (on) {
+      const word = LABEL[k.i].length > 1, cx = k.x + (k.b ? 6 : W / 2);
+      el('text', word ? { x: cx, y: 90, 'font-size': 9, 'text-anchor': 'start', fill: '#000',
+                          transform: `rotate(-90 ${cx + 3} 90)`, 'font-family': 'sans-serif', 'font-weight': 600 }
+                      : { x: cx, y: k.b ? 54 : 90, 'font-size': 11, 'text-anchor': 'middle', fill: '#000' }, LABEL[k.i]);
+    }
+  }
+  el('text', { x: 1, y: 110, 'font-size': 9, fill: 'var(--dim)', 'font-family': 'sans-serif' }, 'F3');
+  el('text', { x: 321, y: 110, 'font-size': 9, fill: 'var(--dim)', 'text-anchor': 'end', 'font-family': 'sans-serif' }, 'G5');
+</script>

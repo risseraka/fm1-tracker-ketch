@@ -7,6 +7,7 @@
   index.html                  the landing page: install, try in the browser, releases
   install/index.html          web/install/index_pkg.html, self-contained (fm1pkg.js, fm1ota.js, metadata inlined)
   emu/                        web/emu/site/ and the tracker's tracker.wasm (python web/emu/build.py ...)
+  guide/                      web/guide/index.html and docs/screens/ (tests/tracker_emu.mjs writes them: guide-*.png)
   firmware/ketch-VER.fwsc     the package (+ LICENSE, LICENSING.md, LICENSES/: the package holds
                               JieLi SDK files under Apache-2.0, see LICENSING.md)
 
@@ -60,6 +61,7 @@ LANDING = """<!doctype html>
   <p>A tracker firmware for the M-VAVE FM-1: song, chain and phrase screens, 4 channels on Felucca's sound engines.
      Version {version} (beta).</p>
   <a class="big" href="emu/"><b>Try it in the browser</b><br><span class="small">The firmware itself, in an emulator. Nothing is installed.</span></a>
+  <a class="big" href="guide/"><b>Screens and controls</b><br><span class="small">Every screen, and what the keys do.</span></a>
   <a class="big" href="install/"><b>Install on your FM-1</b><br><span class="small">Over USB, in Chrome or Edge. Or go back to official V15.</span></a>
   <p class="small"><a href="{repo}/releases" style="color:inherit">Releases</a> ·
      <a href="{repo}" style="color:inherit">Source</a> (GPL-3.0) ·
@@ -116,6 +118,10 @@ def main(pkg, version, wasm, out):
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(ROOT / doc, fw / doc)
     shutil.copy(ROOT / "assets" / "og.png", out / "og.png")
+    (out / "guide" / "screens").mkdir(parents=True, exist_ok=True)
+    shutil.copy(WEB / "guide" / "index.html", out / "guide" / "index.html")
+    for f in (ROOT / "docs" / "screens").glob("guide-*.png"):
+        shutil.copy(f, out / "guide" / "screens" / f.name)
     (out / "index.html").write_text(LANDING.format(version=version, fver=fver, repo=REPO, site=SITE, desc=DESC),
                                     encoding="utf-8")
     print(f"site: {out}: install ({len(html)} B), emu, firmware/{name} ({len(raw)} B, {product})")
