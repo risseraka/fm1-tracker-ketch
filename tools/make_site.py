@@ -39,6 +39,11 @@ def product_of(raw):
 LANDING = """<!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ketch</title>
+<meta name="description" content="{desc}">
+<meta property="og:type" content="website"><meta property="og:url" content="{site}">
+<meta property="og:title" content="Ketch, a tracker for the M-VAVE FM-1"><meta property="og:description" content="{desc}">
+<meta property="og:image" content="{site}og.png"><meta property="og:image:width" content="720"><meta property="og:image:height" content="720">
+<meta name="twitter:card" content="summary">
 <style>
   :root {{ --bg: #fff; --fg: #000; --dim: #777; }}
   @media (prefers-color-scheme: dark) {{ :root:not([data-theme="light"]) {{ --bg: #000; --fg: #fff; --dim: #888; }} }}
@@ -62,6 +67,9 @@ LANDING = """<!doctype html>
 </main>
 """
 REPO = "https://github.com/risseraka/fm1-tracker-ketch"
+SITE = "https://risseraka.github.io/fm1-tracker-ketch/"   # link previews need absolute URLs
+DESC = ("Tracker firmware for the M-VAVE FM-1: song, chain and phrase screens, 4 channels. "
+        "Try it in the browser, or install it over USB.")
 
 
 def main(pkg, version, wasm, out):
@@ -107,7 +115,9 @@ def main(pkg, version, wasm, out):
         encoding="utf-8")
     for doc in ("LICENSE", "LICENSING.md"):
         shutil.copy(ROOT / doc, fw / doc)
-    (out / "index.html").write_text(LANDING.format(version=version, fver=fver, repo=REPO), encoding="utf-8")
+    shutil.copy(ROOT / "assets" / "og.png", out / "og.png")
+    (out / "index.html").write_text(LANDING.format(version=version, fver=fver, repo=REPO, site=SITE, desc=DESC),
+                                    encoding="utf-8")
     print(f"site: {out}: install ({len(html)} B), emu, firmware/{name} ({len(raw)} B, {product})")
 
 
