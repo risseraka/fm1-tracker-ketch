@@ -1,0 +1,101 @@
+# Host mode's key script for the tracker (fw/tests/run_host.sh): a fresh machine writes a 4-note phrase with the
+# gamepad keys (fw/firmware/src/tracker.c PAD_*: bit 0 left, 2 down, 3 up, 4 right, 21 SHIFT, 23 PLAY, 26 EDIT)
+# and plays it. Screens at 1000 ms (writing) and 3000 ms (playing). Format: tests/host.c read_script.
+# S -> C -> P: SHIFT + right twice (the empty song makes chain 00 and phrase 00)
+200 keys 0x200000
+230 keys 0x200010
+260 keys 0x200000
+290 keys 0x200010
+320 keys 0x200000
+350 keys 0x0
+# row 0: EDIT writes the last note: C-3, instrument 00
+380 keys 0x4000000
+410 keys 0x0
+# down 4 rows
+440 keys 0x4
+470 keys 0x0
+500 keys 0x4
+530 keys 0x0
+560 keys 0x4
+590 keys 0x0
+620 keys 0x4
+650 keys 0x0
+# row 4: EDIT writes the last note, EDIT + right 4 times: E-3
+680 keys 0x4000000
+710 keys 0x4000010
+740 keys 0x4000000
+770 keys 0x4000010
+800 keys 0x4000000
+830 keys 0x4000010
+860 keys 0x4000000
+890 keys 0x4000010
+920 keys 0x4000000
+950 keys 0x0
+# down 4 rows
+980 keys 0x4
+1010 keys 0x0
+1040 keys 0x4
+1070 keys 0x0
+1100 keys 0x4
+1130 keys 0x0
+1160 keys 0x4
+1190 keys 0x0
+# row 8: EDIT writes the last note, EDIT + right 3 times: G-3
+1220 keys 0x4000000
+1250 keys 0x4000010
+1280 keys 0x4000000
+1310 keys 0x4000010
+1340 keys 0x4000000
+1370 keys 0x4000010
+1400 keys 0x4000000
+1430 keys 0x0
+# down 4 rows
+1460 keys 0x4
+1490 keys 0x0
+1520 keys 0x4
+1550 keys 0x0
+1580 keys 0x4
+1610 keys 0x0
+1640 keys 0x4
+1670 keys 0x0
+# row C: EDIT writes the last note, EDIT + right 5 times: C-4
+1700 keys 0x4000000
+1730 keys 0x4000010
+1760 keys 0x4000000
+1790 keys 0x4000010
+1820 keys 0x4000000
+1850 keys 0x4000010
+1880 keys 0x4000000
+1910 keys 0x4000010
+1940 keys 0x4000000
+1970 keys 0x4000010
+2000 keys 0x4000000
+2030 keys 0x0
+# back to row 0, PLAY: the phrase, looped
+2060 keys 0x8
+2090 keys 0x0
+2120 keys 0x8
+2150 keys 0x0
+2180 keys 0x8
+2210 keys 0x0
+2240 keys 0x8
+2270 keys 0x0
+2300 keys 0x8
+2330 keys 0x0
+2360 keys 0x8
+2390 keys 0x0
+2420 keys 0x8
+2450 keys 0x0
+2480 keys 0x8
+2510 keys 0x0
+2540 keys 0x8
+2570 keys 0x0
+2600 keys 0x8
+2630 keys 0x0
+2660 keys 0x8
+2690 keys 0x0
+2720 keys 0x8
+2750 keys 0x0
+2780 keys 0x800000
+2810 keys 0x0
+6000 end

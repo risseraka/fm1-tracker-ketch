@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ketch</title>
+<style>
+  :root { --bg: #fff; --fg: #000; --dim: #777; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; } }
+  :root[data-theme="dark"] { --bg: #000; --fg: #fff; --dim: #888; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+  a.big { display: block; border: 1px solid var(--fg); color: inherit; text-decoration: none; padding: 12px 16px; margin: 0 0 12px; }
+  .small { color: var(--dim); font-size: 13px; }
+</style>
+<main>
+  <h1>Ketch</h1>
+  <p>A tracker firmware for the M-VAVE FM-1: song, chain and phrase screens, 4 channels on Felucca's sound engines.
+     Version 0.1-beta (beta).</p>
+  <a class="big" href="emu/"><b>Try it in the browser</b><br><span class="small">The firmware itself, in an emulator. Nothing is installed.</span></a>
+  <a class="big" href="install/"><b>Install on your FM-1</b><br><span class="small">Over USB, in Chrome or Edge. Or go back to official V15.</span></a>
+  <p class="small"><a href="https://github.com/risseraka/ketch/releases" style="color:inherit">Releases</a> ·
+     <a href="https://github.com/risseraka/ketch" style="color:inherit">Source</a> (GPL-3.0) ·
+     <a href="firmware/ketch-0.1-beta.fwsc" style="color:inherit">ketch-0.1-beta.fwsc</a></p>
+</main>
