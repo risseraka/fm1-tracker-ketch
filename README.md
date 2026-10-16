@@ -11,6 +11,8 @@ instruments, effects and a mixer, on the FM-1's own keys and screen.
 > **Status: 0.1 beta.** It runs on the FM-1, but it has been tested on one unit by one person. Expect bugs, and
 > expect that a song saved in a beta may not load in the next one. To keep a song, record it over USB audio.
 
+**M-Vave SMK-37:** see [SMK-37 instructions](SMK37.md).
+
 ## What it does
 
 - **4 channels**, each playing one of Felucca's sound engines (FM, physical models, drums, grains, ...).
@@ -59,6 +61,8 @@ On Windows (PowerShell, Docker Desktop running), point the build at your copies 
 ```powershell
 $env:JIELI_TOOLCHAIN = "<toolchain>"; $env:AC79_SDK = "<sdk>"; $env:JIELI_DOCKER = "1"; python tools/build.py --release 0.1
 ```
+
+For the M-Vave SMK-37: `BOARD=smk37 ./build.sh` (`MODEL=elite` / `mke` for those models; [SMK37.md](SMK37.md)).
 
 `tests/run_host.sh` runs the firmware on your computer (screens as images, the sound as a WAV). The platform's
 API and rules: [docs/API.md](docs/API.md), [docs/RULES.md](docs/RULES.md). Development notes:
