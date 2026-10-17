@@ -28,10 +28,10 @@ The screen is the FM-1's. Where it names an FM-1 button, the SMK-37 button that 
 | --- | --- |
 | **Pads** (top row 1-8, bottom row 9-16) | the gamepad, laid out as on the M8: pad 2 UP; pads 9 10 11 LEFT DOWN RIGHT; pads 7 8 OPTION EDIT; pads 15 16 SHIFT PLAY. Pad 13: OFF (a note off) in the notes modes. The other pads do nothing |
 | **Keys** (37, with velocity) | in the notes modes (REC): all 37 keys play the cursor's channel, C3-C6, and write the note with its velocity (step entry stopped, live recording armed). OCT- / OCT+ move them. With SCALE held, B3-B4 pick the scenes, as the white keys on the FM-1 |
-| K1 | MASTER (volume) |
-| K2 | SELECT: the crossfader, with SCALE (SEL) held |
-| K3, K4 | nothing (ALGORITHM and PRESETS on the FM-1) |
-| K5-K8 | KNOB 1-4 (the screen says K5-K8) |
+| K1-K4 | KNOB 1-4 (the screen says K1-K4) |
+| K5 | MASTER (volume) |
+| K6 | SELECT: the crossfader, with SCALE (SEL) held |
+| K7, K8 | nothing (ALGORITHM and PRESETS on the FM-1) |
 | Faders 1-4 | the mixer's levels of channels 1-4 (X LEVEL); a fader takes over once it moves |
 | Pitch wheel | bend, +-2 semitones, on the cursor's channel |
 | Mod wheel | the mod wheel (the instrument's MODW source), on the cursor's channel |
@@ -46,8 +46,9 @@ The screen is the FM-1's. Where it names an FM-1 button, the SMK-37 button that 
 | OCT- / OCT+ | OCT- / OCT+ |
 | KNOB BANK, FADER BANK, `<`, `>` | nothing |
 
-Pads light in the screen's colours: dim when idle, bright while held; PLAY is bright while the song plays; OFF is lit
-in the cursor channel's colour in the notes modes only. The button LEDs light for a state: GLOBE on the G page,
+Pads light in three colours: off dark orange, on light blue, active bright. The gamepad pads are on, and active while
+held; PLAY is off while stopped and active while the song plays; OFF is on in the notes modes and off outside them.
+The other pads stay dark. The button LEDs light for a state: GLOBE on the G page,
 PATCH while following, SEQ REC in the notes modes (blinking: armed, recording), SEQ PLAY while playing, BT with unsaved
 changes, OCT- / OCT+ off octave 4, SCALE while held.
 
@@ -58,8 +59,9 @@ There is no TRS MIDI IN on the SMK-37.
 The four project slots are kept as on the FM-1, in the keyboard's own data areas: slots 1 and 2 in the stock VM,
 slots 3 and 4 in USRFLASH. The factory calibration, Bluetooth pairing and the stock resources are never written. The
 first start clears data another firmware left in the VM (the stock settings). The stock key mapping in USRFLASH is
-kept until a project is first saved in slot 3 or 4; then its end marker is cleared, so the stock firmware rebuilds its
-factory mapping when you go back to it.
+kept until a project is first saved in slot 3 or 4; just before that write its end marker (the sector 0xEA000) is
+erased, so the stock firmware rebuilds its factory mapping when you go back to it. A start that finds the marker over
+anything but the intact stock mapping erases it too.
 
 ## Build
 

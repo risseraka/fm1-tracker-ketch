@@ -8,8 +8,9 @@
 set -e
 cd "$(dirname "$0")/.."
 CC="${CC:-cc}"
-NODE="${NODE:-node}"
+NODE="${NODE:-node}"          # (node 20.10 or newer: the installer modules are ES modules in .js files)
 fail=0
+mkdir -p build
 run() { what=$1; shift; echo "== $what"; if "$@"; then :; else echo "FAILED: $what"; fail=1; fi; }
 for m in pro elite mke; do
     BOARD=smk37 MODEL=$m sh build.sh > build/smk-$m.log 2>&1 || { echo "build failed (MODEL=$m): build/smk-$m.log"; exit 1; }
@@ -26,12 +27,12 @@ for m in pro elite mke; do
     $CC -O1 -Wall -Wno-unused-function -DBOARD_SMK37=1 "-DSMK_MODEL=\"$name\"" -o build/smktest/smk_ota_test_$m tests/smk_ota_test.c
     run "update entry, SMK-37 build ($m)" build/smktest/smk_ota_test_$m $f build/dinghy.fwsc
 done
-run "the mapping on the host (pads, keys, faders, wheels, LEDs, K5-K8)" python3 tests/smk_ui_test.py
+run "the mapping on the host (pads, keys, faders, wheels, LEDs, K1-K4)" python3 tests/smk_ui_test.py
 run "host mode, SMK-37 build: the phrase written on the pads plays" env BOARD=smk37 sh tests/run_host.sh
 run "host mode, FM-1 build" sh tests/run_host.sh
 run "installer (fm1_install.py)" python3 tests/install_test.py
 if command -v "$NODE" > /dev/null; then
-    run "web installer (fm1pkg.js, fm1ota.js)" "$NODE" tests/smk_web_test.mjs build/ketch-smk37.fwsc
+    run "web installer (fm1pkg.js, fm1ota.js)" "$NODE" --experimental-detect-module tests/smk_web_test.mjs build/ketch-smk37.fwsc
 else
     echo "== web installer: skipped (no node; NODE=...)"
 fi

@@ -10,9 +10,9 @@
  *              (SCALE) held, B3 .. B4 pick the scenes as on the FM-1
  *   faders     the mixer's levels of channels 1-4 (X LEVEL); a fader takes over once it moves
  *   wheels     pitch bend (+-2 semitones) and the mod wheel (the instrument's MODW source) on the cursor's channel
- *   K1         MASTER; K2 SELECT (the crossfader with SEL held); K5-K8 KNOB 1-4; K3, K4 and KNOB BANK, FADER BANK,
+ *   K1-K4      KNOB 1-4; K5 MASTER; K6 SELECT (the crossfader with SEL held); K7, K8 and KNOB BANK, FADER BANK,
  *              < > do nothing (as ALGORITHM and PRESETS on the FM-1)
- *   LEDs       the pads in the screen's colours, dim when idle, bright while held (PLAY while playing); the
+ *   LEDs       the pads in three colours: off dark orange, on light blue, active bright (held; PLAY while playing); the
  *              buttons lit for a state (GLO on G, HOME following, REC notes / armed / recording, PLAY playing, SAVE
  *              unsaved, OCT- / OCT+ off octave 4, SEL held) */
 
@@ -196,17 +196,16 @@ static void smk_notes(uint32_t *dirty)          /* every pass; plays in the note
 }
 
 /* ---- the LEDs (tracker.c leds_update on the FM-1): written when they change */
-static void smk_padc(uint32_t pad, uint32_t c, uint32_t lit)   /* c = 0xRRGGBB at full; idle: about a third */
+/* three states told apart by colour, not only by level: off dark orange, on light blue, active bright white-blue */
+#define SMK_OFF 0x6E2600u
+#define SMK_ON 0x2878D2u
+#define SMK_ACT 0xBEE6FFu
+static void smk_padc(uint32_t pad, uint32_t c)  /* c = 0xRRGGBB */
 {
-    uint32_t r = c >> 16 & 0xFFu, g = c >> 8 & 0xFFu, b = c & 0xFFu;
-    if (!lit) { r = r * 2u / 5u; g = g * 2u / 5u; b = b * 2u / 5u; }
-    padled_set(pad, (uint8_t)r, (uint8_t)g, (uint8_t)b);
+    padled_set(pad, (uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c);
 }
 static void leds_update(void)
 {
-    static const uint32_t PADC[16] = {          /* the screen's colours (P_TEXT, P_CTX, P_HELD, P_ACCENT, P_PLAY) */
-        0, 0xC8C8C8, 0, 0, 0, 0, 0xFFC23D, 0xFF9A2E, 0xC8C8C8, 0xC8C8C8, 0xC8C8C8, 0, 0, 0, 0xD99BD9, 0xFF4F6D};
-    static const uint32_t CHC[NCH] = {0x4FA3FF, 0x5FD36A, 0xF2D14B, 0x47D7E0};   /* P_CH */
     static uint8_t was[SMK_NLED];
     uint8_t L[SMK_NLED];
     uint32_t k, blink = fm1_ms / 250u % 2u == 0u;
@@ -223,11 +222,14 @@ static void leds_update(void)
         if (L[k] != was[k]) { was[k] = L[k]; fm1_led_key(k, L[k]); }
     for (k = 0; k < 16u; k++) {
         uint32_t held = smk_pads >> k & 1u;
-        if (k == SP_OFF) {
-            if (kb) smk_padc(k, CHC[ui.ch], held);
-            else padled_set(k, 0, 0, 0);        /* (OFF writes only in the notes modes) */
-        } else if (PADC[k])
-            smk_padc(k, PADC[k], held || (k == SP_PLAY && playing));
+        if (k == SP_OFF)                        /* (OFF writes only in the notes modes) */
+            smk_padc(k, !kb ? SMK_OFF : held ? SMK_ACT : SMK_ON);
+        else if (k == SP_PLAY)                  /* stopped: off; playing: active */
+            smk_padc(k, held || playing ? SMK_ACT : SMK_OFF);
+        else if (SMK_PAD_KEY[k] != SP_NONE)     /* the gamepad */
+            smk_padc(k, held ? SMK_ACT : SMK_ON);
+        else
+            padled_set(k, 0, 0, 0);             /* (pads that do nothing) */
     }
     padled_flush();                             /* (between LCD transfers) */
 }

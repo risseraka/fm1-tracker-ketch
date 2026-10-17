@@ -143,8 +143,8 @@ static void mem_move(void *d, const void *s, uint32_t n)   /* (overlapping; Ding
 #define NOTE_MAX 107u                           /* B-7 */
 #define VOL_MAX 0x7Fu
 #if BOARD_SMK37
-#define KNOB_NAME "K"                           /* the SMK-37's KNOB 1-4 are K5-K8 (K1-K4: MASTER, SELECT, ...) */
-#define KNOB_NO(k) ((int32_t)(k) + 5)
+#define KNOB_NAME "K"                           /* the SMK-37's KNOB 1-4 are K1-K4 (K5-K8: MASTER, SELECT, ...) */
+#define KNOB_NO(k) ((int32_t)(k) + 1)
 #else
 #define KNOB_NAME "KNOB "
 #define KNOB_NO(k) ((int32_t)(k) + 1)

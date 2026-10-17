@@ -3,7 +3,7 @@
 # SMK-37 port: Copyright (C) 2026 M. Geisler (genkigenki/makkuro)
 """The SMK-37 mapping on the host (tests/host.c with BOARD_SMK37, firmware/src/smk_keys.c): the gamepad on the pads,
 every key a note with its velocity in the notes modes, OFF on a pad, the scenes on the keybed with SEL held, the
-faders, the wheels, the pad and button LEDs, KNOB 1-4 named K5-K8. Builds build/host/tracker-smk37-test, runs short
+faders, the wheels, the pad and button LEDs, KNOB 1-4 named K1-K4. Builds build/host/tracker-smk37-test, runs short
 scripts, checks the dumped state. Exit 1 on a failure.
 
   python3 tests/smk_ui_test.py
@@ -20,6 +20,7 @@ BIN = OUT / "tracker-smk37-test"
 fails = 0
 PAD = dict(UP=1, OPTION=6, EDIT=7, LEFT=8, DOWN=9, RIGHT=10, OFF=12, SHIFT=14, PLAY=15)
 BTN = dict(SEL=8, PLAY=16, REC=17)
+OFF, ON, ACT = 0x6E2600, 0x2878D2, 0xBEE6FF   # smk_keys.c: off dark orange, on light blue, active bright
 TO_PHRASE = ["200 pad 14 100", "230 pad 10 100", "250 pad 10 0", "280 pad 10 100", "300 pad 10 0", "320 pad 14 0"]
 
 
@@ -86,20 +87,23 @@ def main():
     check("a held key sounds (key_want), let go it stops", state(d, 1550)["want"] != "0" and state(d, 1650)["want"] == "0",
           (state(d, 1550)["want"], state(d, 1650)["want"]))
     p = pads(d, 600)
-    check("notes mode: the OFF pad lit in the channel's colour", p[PAD["OFF"]] != 0, hex(p[PAD["OFF"]]))
+    check("notes mode: the OFF pad on (light blue)", p[PAD["OFF"]] == ON, hex(p[PAD["OFF"]]))
 
     print("== the pads' and buttons' lights")
     d = run(["300 dump", "400 pad 7 100", "450 dump", "500 pad 7 0", "600 btn 16", "700 dump", "800 btn 16", "900 dump",
              "1000 end"])
     p = pads(d, 300)
-    for name in ("UP", "LEFT", "DOWN", "RIGHT", "SHIFT", "OPTION", "EDIT", "PLAY"):
-        c = p[PAD[name]]
-        check(f"{name} idle: dim but clearly visible", max(c >> 16, (c >> 8) & 255, c & 255) >= 75, hex(c))
-    check("OFF dark outside the notes modes, unused pads dark", p[PAD["OFF"]] == 0 and p[0] == p[2] == p[11] == 0, p)
-    check("EDIT held: bright", pads(d, 450)[PAD["EDIT"]] > pads(d, 300)[PAD["EDIT"]], (hex(pads(d, 450)[7]), hex(p[7])))
-    check("playing: PLAY pad bright, SEQ PLAY lit", pads(d, 700)[PAD["PLAY"]] == 0xFF4F6D and leds(d, 700)[BTN["PLAY"]] == 1,
+    for name in ("UP", "LEFT", "DOWN", "RIGHT", "SHIFT", "OPTION", "EDIT"):
+        check(f"{name} idle: on (light blue)", p[PAD[name]] == ON, hex(p[PAD[name]]))
+    check("stopped: PLAY off (dark orange)", p[PAD["PLAY"]] == OFF, hex(p[PAD["PLAY"]]))
+    check("OFF off (dark orange) outside the notes modes, unused pads dark",
+          p[PAD["OFF"]] == OFF and p[0] == p[2] == p[11] == 0, p)
+    check("the three colours clearly apart", all(max(c >> 16, (c >> 8) & 255, c & 255) >= 100 for c in (OFF, ON, ACT)) and
+          OFF >> 16 > (OFF & 255) and (ON & 255) > ON >> 16)
+    check("EDIT held: active (bright)", pads(d, 450)[PAD["EDIT"]] == ACT, hex(pads(d, 450)[7]))
+    check("playing: PLAY pad active, SEQ PLAY lit", pads(d, 700)[PAD["PLAY"]] == ACT and leds(d, 700)[BTN["PLAY"]] == 1,
           (hex(pads(d, 700)[15]), leds(d, 700)))
-    check("stopped: PLAY dim again", pads(d, 900)[PAD["PLAY"]] == p[PAD["PLAY"]] and leds(d, 900)[BTN["PLAY"]] == 0)
+    check("stopped: PLAY off again", pads(d, 900)[PAD["PLAY"]] == OFF and leds(d, 900)[BTN["PLAY"]] == 0)
 
     print("== faders, wheels")
     d = run(["300 fader 0 64", "350 dump", "400 fader 1 1", "450 dump", "500 fader 2 10", "520 fader 2 11", "550 dump",
@@ -115,10 +119,10 @@ def main():
     d = run(["300 hold 8 1", "350 key 11 100", "400 key 11 0", "450 dump", "500 hold 8 0",
              "600 pad 14 100", "620 pad 10 100", "640 pad 10 0", "660 pad 10 100", "680 pad 10 0", "700 pad 10 100",
              "720 pad 10 0", "740 pad 14 0", "800 pad 9 100", "820 pad 9 0", "850 pad 9 100", "870 pad 9 0",
-             "900 pad 7 100", "950 enc 4 1", "1000 dump", "1050 pad 7 0", "1100 end"])
+             "900 pad 7 100", "950 enc 0 1", "1000 dump", "1050 pad 7 0", "1100 end"])
     check("SEL + B3: scene 1 picked (not a note)", state(d, 450)["msg"].startswith("scene 1") and state(d, 450)["want"] == "0",
           state(d, 450)["msg"])
-    check("EDIT + K5 names it K5", re.match(r"K5 = \w", state(d, 1000)["msg"]) is not None and
+    check("EDIT + K1 names it K1", re.match(r"K1 = \w", state(d, 1000)["msg"]) is not None and
           "KNOB" not in state(d, 1000)["msg"], state(d, 1000)["msg"])
     print("smk ui tests: " + ("FAILED" if fails else "passed"))
     return 1 if fails else 0

@@ -24,14 +24,14 @@
 #endif
 #if BOARD_SMK37
 /* the SMK-37 (SMK37.md): the FM-1's buttons on the SMK buttons that mean the same (PATCH = HOME, PARA = EDIT,
- * CHORD = ENV, NOTE REPEAT = LFO, SCALE = SEL, GLOBE = GLO, BT = SAVE), the four extras; K1 is the MASTER pot
- * (hal/smk_input.h), K2 SELECT, K3 ALGORITHM, K4 PRESETS, K5..K8 KNOB 1..4. The keys have no LEDs (KEY_LED ids lie past
+ * CHORD = ENV, NOTE REPEAT = LFO, SCALE = SEL, GLOBE = GLO, BT = SAVE), the four extras; K1..K4 KNOB 1..4 (the page's
+ * knobs), K5 the MASTER pot (hal/smk_input.h), K6 SELECT, K7 ALGORITHM, K8 PRESETS. The keys have no LEDs (KEY_LED ids lie past
  * the button LEDs and do nothing); the pads are the app's (smk_keys.c) */
 enum { BTN_KNOB_BANK = 0, BTN_FADER_BANK = 1, BTN_LEFT = 2, BTN_RIGHT = 3, BTN_OCT_DOWN = 4, BTN_OCT_UP = 5,
        BTN_ARP = 6, BTN_LFO = 7, BTN_SEL = 8, BTN_ENV = 9, BTN_GLO = 10, BTN_SAVE = 11, BTN_HOME = 12, BTN_EDIT = 13,
        BTN_FX = 14, BTN_SEQ = 15, BTN_PLAY = 16, BTN_REC = 17 };
-enum { ENC_MASTER = 0, ENC_SELECT = 1, ENC_ALGORITHM = 2, ENC_PRESETS = 3, ENC_KNOB1 = 4, ENC_KNOB2 = 5, ENC_KNOB3 = 6,
-       ENC_KNOB4 = 7 };
+enum { ENC_KNOB1 = 0, ENC_KNOB2 = 1, ENC_KNOB3 = 2, ENC_KNOB4 = 3, ENC_MASTER = 4, ENC_SELECT = 5, ENC_ALGORITHM = 6,
+       ENC_PRESETS = 7 };
 #define KEY_LED(k) (32u + (k))
 
 /* the store: 56 sectors in the stock VM and USRFLASH (src/smk_store.h), for the app's own records */
@@ -64,7 +64,7 @@ enum { ENC_SELECT = 0, ENC_ALGORITHM = 1, ENC_KNOB1 = 2, ENC_KNOB2 = 3, ENC_KNOB
 #include "fm1_lcd_hw.h"
 #include "fm1_audio.h"
 #if !BOARD_SMK37
-#include "fm1_adc.h"                            /* (SMK: smk_input.h stands in, MASTER = K1) */
+#include "fm1_adc.h"                            /* (SMK: smk_input.h stands in, MASTER = K5) */
 #endif
 #include "bootguard.h"
 
@@ -246,10 +246,12 @@ static int store_write(uint32_t off, const void *p, uint32_t n)   /* p in RAM; b
     const uint8_t *q = p;
     if (!flash_ok || off > STORE_LEN || n > STORE_LEN - off) return -1;
     while (n) {
-        uint32_t k = 0x1000u - (off & 0xFFFu);
+        uint32_t k = 0x1000u - (off & 0xFFFu), at = smk_store_flash(off);
         int rc;
         if (k > n) k = n;
-        if ((rc = fl_write(smk_store_flash(off), q, k)) != 0) return rc;
+        if (at >= FL_SMP_LO && at < FL_SMP_HI)
+            smk_stock_release();                /* before the first program in USRFLASH too */
+        if ((rc = fl_write(at, q, k)) != 0) return rc;
         off += k; q += k; n -= k;
     }
     return 0;
@@ -260,7 +262,8 @@ static int store_write(uint32_t off, const void *p, uint32_t n)   /* p in RAM; b
  * while the marker is there and never rebuilds it, so after a return to stock it would read our projects as its key,
  * knob and fader mapping. So: an intact stock mapping is kept (projects 3 and 4 read as empty), and the marker is
  * released (its sector erased: the stock firmware rebuilds its factory mapping at its next start) before the first
- * erase in USRFLASH (store_erase) and at boot when it stands over anything else (smk_owner_check). */
+ * erase or program in USRFLASH (store_erase, store_write) and at boot when it stands over anything else
+ * (smk_owner_check). */
 static int smk_stock_tagged(void)
 {
     static const uint8_t TAG[8] = {'u', 's', 'r', 'd', 'a', 't', 'a', 0};

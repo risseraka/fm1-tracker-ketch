@@ -43,7 +43,7 @@ static int usb_up(void) { return 0; }
 static uint32_t mem_free(int pool) { (void)pool; return 0; }   /* (no linker map here) */
 #if BOARD_SMK37
 /* the SMK-37 (hal/smk_input.h's API, as src/smk_keys.c uses it): keys with velocity, pads as events, 4 faders, 2 wheels,
- * the outer keys, the button and pad LEDs; 8 encoders (K1 = MASTER) */
+ * the outer keys, the button and pad LEDs; 8 encoders (K1..K4 = KNOB 1..4, K5 = MASTER) */
 #define FM1_NKEY 37u
 #define SMK_NPAD 16u
 #define SMK_NLED 19u
