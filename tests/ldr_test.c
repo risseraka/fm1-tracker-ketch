@@ -11,7 +11,9 @@
  * is resumed from that state to a bit-exact end. A cut state is: B the stub boots it, R the stub rescues (the staged
  * loader), O the old firmware still whole (no stub yet, nothing it uses touched), U unprotected (no working stub in
  * sector 0x4000 and not the whole old app). Ours on top of ChoralRoot's: the marker is written only once the whole
- * package's CRC16 adds up (a damaged transfer leaves it blank), and the store 0x97000..0xDFFFF is never erased. */
+ * package's CRC16 adds up (a damaged transfer leaves it blank), and the store 0x97000..0xDFFFF is never erased.
+ * -DBOARD_SMK37=1: the SMK-37's places on SMK-layout packages (make_boot_pkgs.py --board smk37): the app area up to
+ * 0x9D000, the staging at 0xBB000, records only below 0xC0000, the store 0x9D000..0xBAFFF never erased. */
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,6 +22,22 @@
 
 #define FELUCCA_ID "ota-FM-1_900"
 #define FELUCCA_OTA_DRYRUN 0
+#ifndef BOARD_SMK37
+#define BOARD_SMK37 0
+#endif
+#if BOARD_SMK37
+#define T_APP_HI 0x9D000u                /* the end of the app area the loader writes (ldr_core.c LDR_APP_HI) */
+#define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
+#define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
+#define T_DATA_LO 0x9D000u               /* the store (src/smk_store.h: FL_DATA) */
+#define T_DATA_HI 0xBB000u
+#else
+#define T_APP_HI 0x93000u
+#define T_REC_HI 0xFC000u
+#define T_OTA 0xE0000u
+#define T_DATA_LO 0x97000u
+#define T_DATA_HI 0xE0000u
+#endif
 
 static uint8_t nor[0x100000], *logical;
 static size_t logical_len;
@@ -95,13 +113,13 @@ static uint32_t ota_now_ms(void) { return now_ms; }
 static void ota_idle(void) { now_ms++; }
 static int ota_erase(uint32_t off)                  /* the app's step 1 / boot cleanup: the staging area only */
 {
-    if (off < 0xE0000u || off >= 0xE5000u || (off & 0xFFFu)) return -1;
+    if (off < T_OTA || off >= T_OTA + 0x5000u || (off & 0xFFFu)) return -1;
     memset(nor + off, 0xFF, 0x1000);
     return 0;
 }
 static int ota_prog(uint32_t off, const void *p, uint32_t n)
 {
-    if (off < 0xE0000u || off + n > 0xE5000u) return -1;
+    if (off < T_OTA || off + n > T_OTA + 0x5000u) return -1;
     memcpy(nor + off, p, n);
     return 0;
 }
@@ -113,7 +131,7 @@ static void ota_commit(const uint8_t *parm) { (void)parm; }
 static int ldr_fread(uint32_t off, void *p, uint32_t n) { memcpy(p, nor + off, n); return 0; }
 static int ldr_erase(uint32_t off)
 {
-    if (off < 0x4000u || off >= 0xFC000u || (off & 0xFFFu) || (off >= 0x97000u && off < 0xE0000u)) bad_range++;
+    if (off < 0x4000u || off >= T_REC_HI || (off & 0xFFFu) || (off >= T_DATA_LO && off < T_DATA_HI)) bad_range++;
     if (off < 0x4000u) { printf("ERASE IN THE HEAD %#x\n", off); exit(1); }
     erases++;
     memset(nor + off, 0xFF, 0x1000);
@@ -124,7 +142,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > 0x93000u || ((off & 0xFFu) + n) > 256u) bad_range++;
+    if (off < 0x4000u || off + n > T_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     op_done(off);
     return 0;
@@ -302,7 +320,7 @@ int main(int argc, char **argv)
     size_t olen, slen, xlen, klen, vlen, blen;
     uint8_t *old, *same, *other, *stock, *v1, *badm, head[0x4000];
     uint32_t ofo, nfo, sfo, xfo, kfo, vfo, bfo;
-    static uint8_t store[0x49000], dark[0x93000];
+    static uint8_t store[T_DATA_HI - T_DATA_LO], dark[T_APP_HI];
     int bad = 0, rc;
     if (argc < 2) { printf("usage: ldr_test DIR\n"); return 2; }
     old = load_logical(argv[1], "old", &olen);
@@ -310,23 +328,30 @@ int main(int argc, char **argv)
     ofo = flash_off(old);
     nfo = flash_off(logical);
     new_fl = logical + nfo;
-    /* device: OLD installed, a valid update record at 0xE4F00, a project sector in the store that ends like one */
+    /* device: OLD installed, a valid update record at 0xE4F00, a project sector in the store that ends like one
+     * (SMK: the record at 0xBFF00; a project sector as the tracker writes them, its last 256 B erased: the loader
+     * scans the whole VM for records) */
     memset(nor, 0xFF, sizeof nor);
-    memcpy(nor, old + ofo, 0x93000);
+    memcpy(nor, old + ofo, T_APP_HI);
     memcpy(head, nor, sizeof head);
-    put_record(0xE4000u);
+    put_record(T_OTA + 0x4000u);
+#if BOARD_SMK37
+    memset(nor + T_DATA_LO, 0x3C, 0xF00);
+#else
     memset(nor + 0x97000u, 0x3C, 0x1000);
     put_record(0x97000u);
-    memcpy(store, nor + 0x97000u, sizeof store);
+#endif
+    memcpy(store, nor + T_DATA_LO, sizeof store);
     rc = ldr_session();
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
     bad += check("install completes", rc == 0);
-    bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, new_fl + 0x4000, 0x93000 - 0x4000));
+    bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, new_fl + 0x4000, T_APP_HI - 0x4000));
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);
-    bad += check("update record cleared (RAM + flash)", record_cleared && nor[0xE4F06] == 0xFF);
-    bad += check("the store 0x97000..0xDFFFF untouched (a project ending like a record)",
-                 !memcmp(store, nor + 0x97000u, sizeof store));
+    bad += check("update record cleared (RAM + flash)", record_cleared && nor[T_OTA + 0x4F06u] == 0xFF);
+    bad += check(BOARD_SMK37 ? "the store 0x9D000..0xBAFFF untouched (a project sector)"
+                             : "the store 0x97000..0xDFFFF untouched (a project ending like a record)",
+                 !memcmp(store, nor + T_DATA_LO, sizeof store));
     bad += check("no write outside the allowed windows", bad_range == 0);
     erases = 0; requests = 0;
     rc = ldr_session();
@@ -334,7 +359,7 @@ int main(int argc, char **argv)
     {   /* a package for another chip key is refused before any erase */
         uint8_t save = logical[nfo + 0x4000 + 5];
         logical[nfo + 0x4000 + 5] ^= 0x5A;
-        memcpy(nor, old + ofo, 0x93000);
+        memcpy(nor, old + ofo, T_APP_HI);
         erases = 0;
         rc = ldr_session();
         bad += check("foreign key / damaged app head refused, nothing erased", rc == -6 && erases == 0);
@@ -348,27 +373,27 @@ int main(int argc, char **argv)
         uint32_t ota_off = 0, ota_len = 0, fo, fl, fcrc;
         static uint8_t hdr[0x400];
         stub_result_t sr;
-        memset(nor + 0x93000, 0xFF, sizeof nor - 0x93000);
+        memset(nor + T_APP_HI, 0xFF, sizeof nor - T_APP_HI);
         rx_full = 0;
         ota_ufw(hdr, &fo, &fl, &ota_off, &ota_len, &fcrc);
-        memcpy(nor + 0xE0020, logical + ota_off + 0x20, ota_len - 0x20);
+        memcpy(nor + T_OTA + 0x20u, logical + ota_off + 0x20, ota_len - 0x20);
         ota_stage_head(ota_len - 0x20);
         bad += check("stub: the staged loader passes its check", stub_loader_check(nor + STUB_LDR_OFF) == STUB_LD_OK);
         bad += check("ota.c ota_staged agrees", ota_staged() == ota_len);
-        put_record(0xE4000u);
-        memcpy(nor, old + ofo, 0x93000);
+        put_record(T_OTA + 0x4000u);
+        memcpy(nor, old + ofo, T_APP_HI);
         rc = ldr_session();
         bad += check("install -> boot: the record gone, the staged loader kept and whole",
-                     rc == 0 && nor[0xE4F06] == 0xFF && ota_boot_cleanup() == 0 && ota_staged() &&
+                     rc == 0 && nor[T_OTA + 0x4F06u] == 0xFF && ota_boot_cleanup() == 0 && ota_staged() &&
                      stub_loader_check(nor + STUB_LDR_OFF) == STUB_LD_OK);
-        put_record(0xE4000u);
+        put_record(T_OTA + 0x4000u);
         bad += check(".. a record left beside it: its sector erased, the loader kept",
-                     ota_boot_cleanup() == 2 && nor[0xE4F06] == 0xFF && ota_staged() == ota_len);
+                     ota_boot_cleanup() == 2 && nor[T_OTA + 0x4F06u] == 0xFF && ota_staged() == ota_len);
         bad += check(".. the stub boots the app", stub_says(&sr) == STUB_BOOT);
-        nor[0xE0050] ^= 1u;
+        nor[T_OTA + 0x50u] ^= 1u;
         bad += check(".. a damaged staging is erased at boot (ota_boot_cleanup), as before",
-                     !ota_staged() && ota_boot_cleanup() == 1 && nor[0xE0000] == 0xFF && nor[0xE0050] == 0xFF);
-        memcpy(nor + 0xE0020, logical + ota_off + 0x20, ota_len - 0x20);
+                     !ota_staged() && ota_boot_cleanup() == 1 && nor[T_OTA] == 0xFF && nor[T_OTA + 0x50u] == 0xFF);
+        memcpy(nor + T_OTA + 0x20u, logical + ota_off + 0x20, ota_len - 0x20);
         ota_stage_head(ota_len - 0x20);
     }
     {   /* ours: the marker only after the whole package adds up */

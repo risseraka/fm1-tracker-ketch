@@ -142,6 +142,13 @@ static void mem_move(void *d, const void *s, uint32_t n)   /* (overlapping; Ding
 #define NOTE_MIN 24u                            /* C-1 */
 #define NOTE_MAX 107u                           /* B-7 */
 #define VOL_MAX 0x7Fu
+#if BOARD_SMK37
+#define KNOB_NAME "K"                           /* the SMK-37's KNOB 1-4 are K1-K4 (K5-K8: MASTER, SELECT, ...) */
+#define KNOB_NO(k) ((int32_t)(k) + 1)
+#else
+#define KNOB_NAME "KNOB "
+#define KNOB_NO(k) ((int32_t)(k) + 1)
+#endif
 #define NSONG 64u
 #define NCH 4u
 #define NCHN 64u
@@ -355,6 +362,13 @@ static volatile uint32_t key_want;              /* notes mode: the note keys hel
 #define NKEYS 27u                               /* the keybed: F3 .. G5 */
 #define KEY_BASE 53u                            /* key 0's note, F3 (app.js KEY_BASE) */
 static volatile uint8_t key_note[NKEYS], key_ins[NKEYS], key_ch[NKEYS];   /* each one's note, instrument, channel */
+#if BOARD_SMK37
+static volatile uint8_t key_vel[NKEYS];         /* SMK-37: each one's velocity (the keys' slots: smk_keys.c) */
+static uint8_t smk_vel = 100;                   /* SMK-37: the velocity rec_write writes (smk_keys.c) */
+#define KEY_VEL(k) key_vel[k]
+#else
+#define KEY_VEL(k) VOL_MAX
+#endif
 static uint32_t key_had;                        /* ISR: the keys it has started */
 static volatile uint8_t hit_seq[NCH], hit_note[NCH];   /* ISR -> main: a note struck (after DEL, every RET hit), */
 static volatile uint16_t hit_ms[NCH];           /* for the key flash: how long it flashes */
@@ -1093,7 +1107,7 @@ static void events_block(uint32_t n)            /* fx.c mix_block: once per cont
         for (k = 0; k < NKEYS; k++) {
             uint32_t b = 1u << k;
             if ((want ^ key_had) & b) {
-                if (want & b) { if (!playing) part_take(key_ch[k], key_ins[k]); trk_note_on(&trk[key_ch[k]], key_note[k], VOL_MAX); }
+                if (want & b) { if (!playing) part_take(key_ch[k], key_ins[k]); trk_note_on(&trk[key_ch[k]], key_note[k], KEY_VEL(k)); }
                 else trk_note_off(&trk[key_ch[k]], key_note[k]);
             }
         }
@@ -3572,7 +3586,7 @@ static void u_text(const uchg_t *w, const uint8_t *a, const uint8_t *b, char *s)
     if (w->kind == UK_SCN) { sa(s, "SCENES"); return; }
     if (w->kind == UK_KNOB) {                   /* `I3 KNOB 2 CUT>RES` */
         s[0] = 'I'; s[1] = HEX[w->at & 15u]; s[2] = 0;
-        sa(s, " KNOB "); sn(s, (int32_t)w->r + 1); sa(s, " ");
+        sa(s, " " KNOB_NAME); sn(s, KNOB_NO(w->r)); sa(s, " ");
         cmd_name(CMD_SOUND | slot_of(w->at, w->r, a[0]), w->at, t); sa(s, t); sa(s, ">");
         cmd_name(CMD_SOUND | slot_of(w->at, w->r, b[0]), w->at, t); sa(s, t);
         return;
@@ -4033,7 +4047,11 @@ static void rec_write(uint32_t note)
         }
     }
     w = &S.phrases[ph][row];
+#if BOARD_SMK37
+    if (note != NOTE_OFF) w->vol = smk_vel;     /* SMK-37: the key's velocity (smk_keys.c) */
+#else
     if (note != NOTE_OFF && (w->n == EMPTY || w->n == NOTE_OFF) && w->vol == EMPTY) w->vol = last.vol;
+#endif
     w->n = (uint8_t)note;
     if (note != NOTE_OFF) w->i = last.inst;
     del = del > 5 ? 5 : del;
@@ -4204,6 +4222,7 @@ static uint32_t touch_state(void)               /* each loop (app.js touchState)
 }
 
 /* ---------------------------------------------------------------- the LEDs (app.js leds) --- */
+#if !BOARD_SMK37                                /* (the SMK-37's: smk_keys.c) */
 /* Buttons: dim when they do something here, lit for a state (REC: notes; blinking: armed, recording; PLAY while
  * playing, in its normal light; OCT- / OCT+ off octave 4). Keys: the gamepad keys dim; in notes mode the 16 white keys
  * are the phrase's steps (a note: lit, the cursor's row: dim, the playhead: the opposite); a note the cursor's channel
@@ -4263,6 +4282,7 @@ static void leds_update(void)
     for (k = 0; k < NKEYS; k++) if (key_want >> k & 1u) L[14u + k] = L_ON;
     for (k = 0; k < NLED; k++) if (L[k] != led_was[k]) { led_was[k] = L[k]; led_set(k, L[k]); }
 }
+#endif
 
 /* ---------------------------------------------------------------- saving (docs/flash-map.md) --- */
 /* 4 project slots in the store, each kept twice (A / B, 7 sectors a copy): a save writes the copy that is not the
@@ -5713,7 +5733,7 @@ static void knob_assign(uint32_t k)
     }
     undo_mark(0, 0);                            /* (its own undo step) */
     S.knob[ui.inst][k] = (uint8_t)(key & 0x7Fu);
-    str_cpy(s, "KNOB ", sizeof s); sn(s, (int32_t)k + 1); sa(s, " = ");
+    str_cpy(s, KNOB_NAME, sizeof s); sn(s, KNOB_NO(k)); sa(s, " = ");
     cmd_name(CMD_SOUND | key, ui.inst, s + str_len(s));
     say(s);
 }
@@ -5916,6 +5936,10 @@ static uint32_t overlay_draw(uint32_t keys, uint32_t dirty)
     return dirty;
 }
 
+#if BOARD_SMK37
+#include "smk_keys.c"                           /* the SMK-37's pads, keys, faders, wheels and LEDs */
+#endif
+
 static void app_main(void)
 {
     uint32_t prev = 0, dirty = DIRTY_ALL, moved, rec_row_was = 0, lfo_t = 0, shown_tick = 0, shown_swing = 0, was_playing = 0;
@@ -5939,7 +5963,11 @@ static void app_main(void)
         uint32_t keys, down, kup, rel, btn, k, field_was = FROW(ui.field);
         int32_t dx, dy;
         platform_poll();
+#if BOARD_SMK37
+        keys = smk_poll(&dirty);                /* the gamepad on the pads (smk_keys.c) */
+#else
         keys = fm1_in.notes;
+#endif
         aud_hold = (uint8_t)(keys >> PAD_EDIT & 1u);
         down = keys & ~prev;
         kup = prev & ~keys;
@@ -6206,6 +6234,9 @@ static void app_main(void)
             str_cpy(t, "octave ", sizeof t); sn_n(t, 4 + oct, sizeof t);
             say(t);
         }
+#if BOARD_SMK37
+        smk_notes(&dirty);                      /* every key a note, OFF on a pad (smk_keys.c) */
+#else
         if (kb) {                               /* notes mode (app.js keyDown): A#3..C#5 notes, F#3 a note off; the
                                                  * gamepad keys work as ever. Stopped, on the phrase: written at the
                                                  * cursor, which moves down (step entry) */
@@ -6231,6 +6262,7 @@ static void app_main(void)
                 key_want |= b;
             }
         }
+#endif
         if (!(fm1_in.buttons >> BTN_EDIT & 1u) && btn & (1u << BTN_ENV | 1u << BTN_LFO | 1u << BTN_FX)) {
             /* panel ENV / LFO / FX: the focus instrument's E / L / V page (app.js 'jump'); FX again on V: F */
             uint32_t v = btn >> BTN_ENV & 1u ? V_ENV : btn >> BTN_LFO & 1u ? V_LFO : V_VOX;

@@ -67,8 +67,8 @@ class FakeFM1:
     """a MIDI backend with one FM-1 on it"""
 
     def __init__(self, image, identity="FM-1_015", name="FM-1", unplug_after=None, after_write="FM-1_900",
-                 stall_after=None, bad_addr=None, notes=()):
-        self.image, self.unplug_after, self.after_write = image, unplug_after, after_write
+                 stall_after=None, bad_addr=None, notes=(), loader="ota-FM-1_900"):
+        self.image, self.unplug_after, self.after_write, self.loader = image, unplug_after, after_write, loader
         self.stall_after, self.bad_addr, self.notes = stall_after, bad_addr, list(notes)
         self.served = self.bad = self.upgrades = 0
         self.sent, self.links, self.gen, self.lock = [], [], 0, threading.Lock()
@@ -124,7 +124,7 @@ class FakeFM1:
             if self.stall_after and self.served >= self.stall_after or addr & 0xF0000000 == I.REFUSED:
                 return
             if addr == I.FINISH_CHECK:
-                threading.Timer(0.05, self.boot, ("ota-FM-1_900", "Felucca Update")).start()
+                threading.Timer(0.05, self.boot, (self.loader, "Felucca Update")).start()
             elif addr == I.FINISH_WRITE:
                 threading.Timer(0.05, self.boot, (self.after_write, "Felucca")).start()
             else:
@@ -310,18 +310,65 @@ def errors():
     ok(rc == 2, "missing file -> exit 2")
 
 
+def interleave(img, product, blocks):
+    """a .fwsc from a logical image: the identity's markers, then 0x7D up to blocks (the stock SMK v016: 36)"""
+    raw = bytearray()
+    for i in range(blocks):
+        m = (ord(product[i]) + i + 1) & 0xFF if i < len(product) else 0x7D
+        raw += img[i * I.KEEP:(i + 1) * I.KEEP] + bytes([m])
+    return bytes(raw + img[blocks * I.KEEP:])
+
+
+def smk():
+    """the SMK-37: exactly the package's model on every path, the port filter, the interleave count"""
+    pro, elite, fm1 = package("SMK-37 Pro_950"), package("SMK-37 Elite_950"), package("FM-1_950")
+    image = I.logical_image(pro)
+    pp, pe, pf = pkgfile("pro.fwsc", pro), pkgfile("elite.fwsc", elite), pkgfile("fm1.fwsc", fm1)
+    dev = FakeFM1(image, identity="SMK-37 Pro_016", name="SMK-37 Pro", loader="ota-SMK-37 Pro_900",
+                  after_write="SMK-37 Pro_950")
+    rc, out, err = cli([pp, "--yes"], dev)
+    ok(rc == 0 and dev.bad == 0 and "SMK-37 Pro_950" in out, "SMK-37 Pro package on an SMK-37 Pro (stock): installs")
+    for p, ident, what in ((pe, "SMK-37 Pro_016", "an Elite package on a Pro"), (pp, "SMK-37 Elite_016", "a Pro package on an Elite"),
+                           (pf, "SMK-37 Pro_950", "an FM-1 package on an SMK-37"), (pp, "FM-1_015", "an SMK-37 package on an FM-1"),
+                           (pp, "MKE-P37_016", "a Pro package on an MKE-P37")):
+        dev = FakeFM1(I.logical_image(pro), identity=ident, name="SMK-37 Pro" if ident[0] == "S" else "FM-1")
+        rc, out, err = cli([p, "--yes"], dev)
+        ok(rc == 6 and dev.upgrades == 0, f"{what} -> exit 6, nothing sent but the handshake")
+    for p, ident, want, what in ((pf, "ota-SMK-37 Pro_900", 6, "resume: an FM-1 package to an SMK-37 loader"),
+                                 (pe, "ota-SMK-37 Pro_900", 6, "resume: an Elite package to a Pro loader"),
+                                 (pp, "ota-FM-1_900", 6, "resume: an SMK-37 package to an FM-1 loader"),
+                                 (pp, "ota-SMK-37 Pro_900", 0, "resume: the Pro package to the Pro loader finishes")):
+        dev = FakeFM1(image, identity=ident, name="Felucca Update", after_write="SMK-37 Pro_950")
+        rc, out, err = cli([p, "--yes"], dev)
+        ok(rc == want and (want == 0 or dev.upgrades == 0), f"{what} -> exit {want}")
+    for name, probed in (("SMK-37 Pro", True), ("SMK-37 Elite", True), ("MKE-P37", True), ("STARRYKEY-37 PLAY", True),
+                         ("Felucca", True), ("Drum Machine", False), ("Audio Interface", False), ("Synth Module", False)):
+        dev = FakeFM1(image, identity="SMK-37 Pro_950", name=name)
+        rc, out, err = cli(["--info"], dev)
+        ok((rc == 0) == probed and (bool(dev.sent) == probed), f"MIDI port {name!r}: {'probed' if probed else 'never sent anything'}")
+    img = bytearray(I.logical_image(pro))
+    raw36 = interleave(img, "SMK-37 Pro_016", 36)
+    ok(I.block_count(raw36) == 36 and I.deinterleave(raw36) == bytes(img), "36 interleave blocks (stock SMK v016 layout): detected, files check out")
+    img2 = bytearray(img)
+    raw20 = bytearray(interleave(img2, "SMK-37 Pro_950", 20))
+    raw20[20 * I.BLK + I.KEEP] = 0x7D                    # 0x7D there by chance (outside the files' CRCs)
+    ok(I.block_count(raw20) > 20 and I.deinterleave(bytes(raw20)) == I.logical_image(bytes(raw20)),
+       "0x7D after block 20 by chance: the files fail with the detected count, 20 blocks taken")
+
+
 def ours():
-    built = ROOT / "build/dinghy.fwsc"
-    if not built.exists():
-        print("our package: skipped (needs fw/build/dinghy.fwsc: fw/tools/build.py)")
-        return
-    product, image = I.load_package(str(built), False)
-    ok(I.LOADER_MARK in I.package_file(image, 100)[0x48:0x88], f"{built.name} ({product}): our loader, where ota.c looks")
+    for built in (ROOT / "build/dinghy.fwsc", *sorted((ROOT / "build").glob("ketch-smk37*.fwsc"))):
+        if not built.exists():
+            print("our package: skipped (needs fw/build/dinghy.fwsc: fw/tools/build.py)")
+            continue
+        product, image = I.load_package(str(built), False)
+        ok(I.LOADER_MARK in I.package_file(image, 100)[0x48:0x88], f"{built.name} ({product}): our loader, where ota.c looks")
 
 
 wire()
 installs()
 errors()
+smk()
 ours()
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"INSTALL TESTS FAILED ({failed})" if failed else "install tests passed")

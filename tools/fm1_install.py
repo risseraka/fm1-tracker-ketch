@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Install a Felucca package (.fwsc) on an FM-1 over USB-MIDI.
+"""Install a Felucca package (.fwsc) on an FM-1 (or an SMK-37) over USB-MIDI.
 
 The same update as the web installer (web/fm1ota.js): step 1, the
 running firmware reads parts of the package and starts the update loader;
@@ -10,6 +10,7 @@ device asks (SysEx read requests on the logical image) and we answer. Then
 the FM-1 restarts and the installed identity is checked.
 
   fm1_install.py PACKAGE.fwsc [--port NAME] [--yes] [--force]
+  fm1_install.py SMK-37_Pro_016.fwsc (the official SMK-37 Pro V016 file: back to the stock firmware)
   fm1_install.py --info [--port NAME]
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
@@ -19,13 +20,18 @@ Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
 loader / no restart), 6 wrong model, another identity after the install, or the
 FM-1 is in the update mode of another firmware (only SLOOP's own loader,
-ota-FM-1_9XX, is resumed), 7 the FM-1 refused the package (it asked 0xD0xxxxxx:
+ota-FM-1_9XX, or the SMK-37's ota-<model>_9XX, is resumed), 7 the FM-1 refused the package (it asked 0xD0xxxxxx:
 0x97 the same firmware, 0x83 the loader failed its check).
 
 The flash head (SPL, chip config: flash 0x0000-0x3FFF) is never written by our
 loader (firmware/loader/ldr_core.c, LDR_APP_LO); any other loader writes the
 whole flash.bin, so a package without ours must carry stock's head
 (docs/research/first-flash.md §4).
+
+A package installs only on exactly its own model (FM-1, SMK-37 Pro, SMK-37 Elite, MKE-P37; never an FM-1 and an
+SMK-37 crossed), also when a write is finished in update mode.
+Packages: 20 interleave blocks (FM-1, Felucca, the SMK build) or more (the stock SMK-37 Pro v016 has 36: the extra
+markers are 0x7D); the detected count is used only when the files' CRCs check out with it, else 20.
 """
 import argparse
 import hashlib
@@ -40,11 +46,17 @@ FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 NOTE, REFUSED = 0xC0000000, 0xD0000000    # stock firmware's state / stop / diagnostic, and "package refused"
 REFUSALS = {0x97: "it already runs this firmware", 0x83: "the update loader failed the device's check"}
 MAXDATA = 512
-BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
+BLOCKS, BLK, KEEP = 20, 0x30, 0x2F         # BLOCKS: the identity blocks (more may follow, see block_count)
+MAX_BLOCKS = 64
 LOADER_MARK = b"FELUCCA-LOADER-1"
 # sha256 of the 16 KB flash head of stock V13-V15 (uboot.boot, isd_config): fuleo/fm1-linux-update verify_fwsc.py
 STOCK_HEAD = "d9f43191777656de01c7bed4f9e9ba2e34e94832c5d2ed02c3fc7ab7a6d9bd67"
-PORT_RE = re.compile(r"fm-1|felucca|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
+# the unmodified official SMK-37 Pro V016 (SMK-37_Pro_016.fwsc, 36 interleave blocks): the return of an SMK-37 Pro
+STOCK_SMK016_SHA256 = "2d98ce72530e71d617384963423820536f094501299e2cfec0a8d3c3fb6bcfb0"
+STOCK_SMK_HEAD = "119f1f53349a7d7d2272f5b14faa1e34ab84beeaf6d8462bd85d5557ef80ea89"   # its 16 KB flash head
+# the MIDI ports probed: the FM-1 / SMK-37 models' names and this firmware's ("Felucca"); never other gear
+PORT_RE = re.compile(r"fm-1|smk|elite|mke-p37|starry|felucca|ota|composite|sinco|usb-midi", re.I)
+OWN_LOADER_RE = re.compile(r"ota-(FM-1|SMK-37 Pro|SMK-37 Elite|MKE-P37)_9\d\d", re.I)   # our update loader, by model
 
 # seconds; the tests shorten them
 DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
@@ -122,7 +134,7 @@ def parse_identity(pkt):
     d = unpack7(pkt[1:-1])
     if len(d) != 34 or d[:3] != b"\x00\x59\x11":
         return None
-    txt = d[6:33].rstrip(b"\0").decode("latin-1")
+    txt = d[6:33].split(b"\0")[0].decode("latin-1")
     m = re.fullmatch(r"([^_]+)_(\d+)", txt)
     return Identity(txt, m[1], int(m[2])) if m else None
 
@@ -136,12 +148,37 @@ def product_of(raw):
     return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
 
 
-def logical_image(raw):
-    """the image the device reads during an update: the package without the 20 marker bytes"""
+def block_count(raw):
+    """interleave blocks: 20, then more while the marker is the unused 0x7D (SMK-37 Pro v016: 36).
+    A 20-block package can have 0x7D there by chance: deinterleave checks the CRCs and falls back."""
+    n = BLOCKS
+    while n < MAX_BLOCKS and (n + 1) * BLK <= len(raw) and raw[n * BLK + KEEP] == 0x7D:
+        n += 1
+    return n
+
+
+def logical_image(raw, blocks=BLOCKS):
+    """the image the device reads during an update: the package without the marker bytes"""
     out = bytearray()
-    for i in range(BLOCKS):
+    for i in range(blocks):
         out += raw[i * BLK:i * BLK + KEEP]
-    return bytes(out + raw[BLOCKS * BLK:])
+    return bytes(out + raw[blocks * BLK:])
+
+
+def deinterleave(raw):
+    """the logical image: the detected block count only when its files pass the CRC check, else 20"""
+    n = block_count(raw)
+    if n != BLOCKS:
+        image = logical_image(raw, n)
+        if not package_damage(image):
+            return image
+    return logical_image(raw, BLOCKS)
+
+
+def same_model(a, b):
+    """identities a and b name exactly the same model ("ota-" aside): a package installs only on its own model
+    (the SMK-37 Pro, SMK-37 Elite and MKE-P37 builds each on their own model, never an FM-1 and an SMK)"""
+    return model_of(a) == model_of(b)
 
 
 def model_of(text):
@@ -368,10 +405,10 @@ class Updater:
     def install(self, dev, image, product, step=lambda *a: None):
         """running firmware -> loader -> new firmware; dev from find(). A device already in
         update mode only needs the write."""
-        if model_of(dev.id.text) != model_of(product):
+        if not same_model(dev.id.text, product):
             dev.link.close()
             raise InstallError("model", f"the device is {dev.id.text}, the package is for {product}")
-        if dev.id.loader and not re.fullmatch(r"ota-FM-1_9\d\d", dev.id.text, re.I):
+        if dev.id.loader and not OWN_LOADER_RE.fullmatch(dev.id.text):
             dev.link.close()           # another firmware's loader: its image layout may differ
             raise InstallError("foreign", f"the FM-1 is in the update mode of another firmware ({dev.id.text}): "
                                           "finish that update with its own updater (M-UPGRADE), then install again")
@@ -390,17 +427,19 @@ def load_package(path, force):
     product = product_of(raw)
     if not re.fullmatch(r"[^_]+_\d+", product):
         raise InstallError("badpkg", f"{path}: not an FM-1 package (identity {product!r})")
-    image = logical_image(raw)
+    image = deinterleave(raw)
     bad = package_damage(image)
     if bad:
         raise InstallError("badpkg", f"{path}: damaged package ({bad}); nothing was written. "
                                      "Download it again.")
     # ours = the marker where the running firmware's ota.c looks: the loader's first LZ4 literals
     if LOADER_MARK not in package_file(image, 100)[0x48:0x88]:
+        if hashlib.sha256(raw).hexdigest() == STOCK_SMK016_SHA256:
+            return product, image               # the unmodified stock SMK-37 Pro V016: the way back
         if not force:
             raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; "
                                          "only Felucca's own packages are installed (--force overrides)")
-        if hashlib.sha256(package_file(image, 0)[:0x4000]).hexdigest() != STOCK_HEAD:
+        if hashlib.sha256(package_file(image, 0)[:0x4000]).hexdigest() not in (STOCK_HEAD, STOCK_SMK_HEAD):
             raise InstallError("badpkg", f"{path}: its loader writes the flash head (SPL, chip config) and this "
                                          "head is not stock's; nothing was written (--force does not override)")
     return product, image
@@ -446,7 +485,11 @@ def package_damage(image):
         name = e[0x40:0x50].split(b"\0")[0].decode("ascii", "replace")
         if off + size > len(image):
             return f"{name}: cut short"
-        if _crc16(image[off:off + size]) != dcrc:
+        typ = int.from_bytes(e[0:2], "little")
+        # flash.bin (0) and ota.bin (100), what the device installs, carry the CRC of their bytes as
+        # served. The stock packer's other entries (USR 50, isd_config.ini 52, script.ver, blimit.bin)
+        # store a CRC of something else: checked for their bounds only.
+        if typ in (0, 100) and _crc16(image[off:off + size]) != dcrc:
             return f"{name}: CRC"
     return None
 

@@ -54,6 +54,8 @@ def bad_marker(body):
 
 def main():
     out = Path(sys.argv[1])
+    if sys.argv[2:4] == ["--board", "smk37"]:    # the SMK-37's flash layout (fm1pkg_make --board smk37)
+        pk.set_board("smk37")
     out.mkdir(parents=True, exist_ok=True)
     ota = loader()
     a, b = stub(1, 3), stub(2, 2)

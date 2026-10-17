@@ -12,6 +12,7 @@ complete source under the same licence too.
 | The sound layer `firmware/sound/` (engines, parameters, modulation, voices, slicer, effects) | Felucca, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments; the third-party parts below |
 | The installer `web/install/` (`fm1pkg.js`, `fm1ota.js`, the page), `tools/make_site.py` | Felucca, Leo Kuroshita; Ketch's changes |
 | The wiring `platform.c`, the host mode `tests/host.c`, the browser emulator `web/emu/` | [Dinghy](https://github.com/zvenson/dinghy), zvenson; the emulator's faceplate from [sloop-web-emu](https://github.com/sabliran/sloop-web-emu) (GPL-3.0) |
+| The SMK-37 target: `firmware/hal/smk_input.h`, `fm1_flash_map.h`, `firmware/src/smk_keys.c`, `smk_store.h`, the `BOARD_SMK37` parts, `SMK37.md`, `tests/smk_*` | M. Geisler (genkigenki/makkuro), after Felucca's SMK-37 target |
 | The tracker `firmware/src/tracker.c`, `commands.c`, `sound.c` and the rest of the app, the docs | Adrien Risser-Zhuang |
 
 ## Third-party material
